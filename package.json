@@ -4,6 +4,9 @@
   "description": "Dashboard UI plugin for DeepSeek Harness: an overview of all sessions, task progress, and metrics on one page.",
   "type": "module",
   "main": "lib/index.js",
+  "scripts": {
+    "smoke": "node scripts/smoke.mjs"
+  },
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
