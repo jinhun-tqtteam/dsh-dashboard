@@ -41,7 +41,8 @@ Copy (hoặc `git clone`) vào thư mục plugins của profile DSH:
 với `<profile>` thường là `~/.dsh/profiles/<tên-profile>`. Cấu trúc plugin:
 
 - `package.json` — khai báo `dsh.client` face (inject runtime + primitives, platform web)
-- `lib/client.js` — bundle UI chạy trong browser (tự đăng ký qua `window.__ModuleLoader__`)
+- `src/` — **source**: component JSX (`src/components/`), store, helper, stylesheet; đây là nơi duy nhất để sửa code
+- `lib/client.js` — bundle UI chạy trong browser (tự đăng ký qua `window.__ModuleLoader__`), **sinh ra từ `npm run build`** — đừng sửa tay
 - `lib/index.js` — host half (rỗng, chỉ để plugin xuất hiện trong loader)
 
 Khởi động lại `dsh web` rồi hard-refresh trình duyệt.
@@ -75,6 +76,23 @@ cần host projection plugin riêng để hiển thị (đã research, xem lịc
 
 - Lỗi LLM-level chưa hiển thị (cần host projection plugin riêng)
 - `completed` là "done reminder" của sidebar, không phải exit-status của task
+
+## Phát triển
+
+```
+npm install        # cài devDependencies (esbuild)
+npm run build      # bundle src/ -> lib/client.js
+npm run smoke      # kiểm tra bundle không cần browser: syntax, đăng ký factory, 3 slot, openSession
+```
+
+`esbuild.mjs` ghép output của esbuild (format CJS, `react`/`react/jsx-runtime`/`@deepseek-ai/dsh-client-ui-primitives`
+để external — host module system cung cấp lúc materialize) vào shape `window.__ModuleLoader__.load({id, factory})`
+giống hệt các package chính thức. `lib/` vẫn được commit để cài kiểu copy-kéo-thả không cần build,
+nhưng mọi thay đổi UI phải đi qua `src/` rồi build lại.
+
+Ghi chú kiến trúc: `useSessions`/`useWorkspaces` là standard props host tự cấp cho slot scope `root`;
+`openSession` không phải standard prop — được cấp qua descriptor `inject` (map tới `ctx.sessions.open(id)`).
+`DashboardPanel`/`StickyWidget` chia 2 tầng (gate + body) để subscription nặng chỉ chạy khi đang hiển thị.
 
 ## License
 

@@ -30,9 +30,15 @@ const react = {
   useEffect: () => {},
   useRef: (v) => ({ current: v }),
 };
+const jsxRuntime = {
+  Fragment: Symbol.for("react.fragment"),
+  jsx: (type, props, key) => ({ $$el: true, type, props, key }),
+  jsxs: (type, props, key) => ({ $$el: true, type, props, key }),
+};
 const primitives = new Proxy({}, { get: (_t, key) => ({ displayName: String(key) }) });
 const requireShim = (name) => {
   if (name === "react") return react;
+  if (name === "react/jsx-runtime") return jsxRuntime;
   if (name === "@deepseek-ai/dsh-client-ui-primitives") return primitives;
   throw new Error("unexpected require: " + name);
 };
