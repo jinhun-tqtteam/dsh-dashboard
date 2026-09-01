@@ -14,7 +14,7 @@ export function NotifyBell({ size = 14 }) {
 	const on = useNotify();
 	const perm = useNotifyPermission();
 	const title = !on ? "Notifications off (click to enable)"
-		: perm === "granted" ? "Notifications on: window banner + toast + sound, every status change (click to disable)"
+		: perm === "granted" ? "Notifications on: window banner + toast + sound for completed, error, waiting (click to disable)"
 		: perm === "denied" ? "Notifications on: toast + sound only \u2014 banners blocked by the browser (unblock via the lock icon in the address bar; click to disable)"
 		: "Notifications on: toast + sound \u2014 toggle off/on to re-ask for banner permission (click to disable)";
 	return (
