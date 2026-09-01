@@ -1,37 +1,73 @@
 {
-  "name": "@dsh-user/dsh-dashboard",
-  "version": "0.1.0",
-  "description": "Dashboard UI plugin for DeepSeek Harness: an overview of all sessions, task progress, and metrics on one page.",
-  "type": "module",
-  "main": "lib/index.js",
-  "scripts": {
-    "build": "node esbuild.mjs",
-    "smoke": "node scripts/smoke.mjs"
-  },
-  "exports": {
-    ".": "./lib/index.js",
-    "./client": "./lib/client.js",
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "lib"
-  ],
-  "dsh": {
-    "client": {
-      "inject": [
-        "@deepseek-ai/dsh-client-runtime",
-        "@deepseek-ai/dsh-client-ui-primitives"
-      ],
-      "platform": "web"
-    }
-  },
-  "license": "MIT",
-  "devDependencies": {
-    "esbuild": "^0.25.10"
-  },
-  "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-client-runtime": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-client-ui-primitives": "^0.1.1-rc.2"
-  }
+	"name": "@jinhun-tqtteam/dsh-dashboard",
+	"version": "0.1.0",
+	"description": "Session Dashboard plugin for DeepSeek Harness: every session, task progress, background jobs and KPIs on one page inside the harness web GUI. Unofficial third-party plugin.",
+	"type": "module",
+	"main": "./lib/index.js",
+	"scripts": {
+		"build": "node esbuild.mjs",
+		"smoke": "node scripts/smoke.mjs",
+		"prepublishOnly": "node esbuild.mjs && node scripts/smoke.mjs"
+	},
+	"exports": {
+		".": "./lib/index.js",
+		"./client": "./lib/client.js",
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"lib",
+		"src",
+		"README.md",
+		"LICENSE"
+	],
+	"dsh": {
+		"client": {
+			"inject": [
+				"@deepseek-ai/dsh-client-runtime",
+				"@deepseek-ai/dsh-client-ui-primitives"
+			],
+			"platform": "web"
+		}
+	},
+	"keywords": [
+		"deepseek",
+		"deepseek-harness",
+		"dsh",
+		"dsh-plugin",
+		"dashboard",
+		"session-dashboard",
+		"agent-monitoring",
+		"unofficial"
+	],
+	"engines": {
+		"node": ">=18"
+	},
+	"sideEffects": [
+		"*.css",
+		"./lib/client.js"
+	],
+	"license": "MIT",
+	"author": {
+		"name": "Tran Quang Tien",
+		"url": "https://github.com/jinhun-tqtteam"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/jinhun-tqtteam/dsh-dasboard.git"
+	},
+	"homepage": "https://github.com/jinhun-tqtteam/dsh-dasboard#readme",
+	"bugs": {
+		"url": "https://github.com/jinhun-tqtteam/dsh-dasboard/issues"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"devDependencies": {
+		"esbuild": "^0.25.10"
+	},
+	"peerDependencies": {
+		"@deepseek-ai/cordis": "^4.0.1",
+		"@deepseek-ai/dsh-client-runtime": "^0.1.1-rc.2",
+		"@deepseek-ai/dsh-client-ui-primitives": "^0.1.1-rc.2"
+	}
 }
