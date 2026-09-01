@@ -1,5 +1,5 @@
 import { IconCloseFill14 } from "@deepseek-ai/dsh-client-ui-primitives";
-import { formatDuration, formatTime, formatTokens, jobStatusClass, statsOf, statusClass, statusLabel, statusOf } from "../helpers.js";
+import { contextRatio, formatDuration, formatTime, formatTokens, formatTokensFull, jobStatusClass, statsOf, statusClass, statusLabel, statusOf, usageOf } from "../helpers.js";
 
 function detailCell(label, value) {
 	return (
@@ -18,6 +18,11 @@ export function SessionDetail({ session, jobs, onClose, openSession }) {
 	const todos = session.projectionValues && Array.isArray(session.projectionValues.todos) ? session.projectionValues.todos : [];
 	const done = todos.filter((t) => t.status === "completed").length;
 	const goal = session.projectionValues && session.projectionValues.goals;
+	const usage = usageOf(session);
+	const usageTotal = usage ? (usage.uncachedInputTokens || 0) + (usage.outputTokens || 0) + (usage.cacheReadTokens || 0) + (usage.cacheWriteTokens || 0) : 0;
+	const pctOf = (n) => (usageTotal > 0 ? ((n || 0) / usageTotal) * 100 : 0);
+	const pressure = session.projectionValues && session.projectionValues.contextPressure;
+	const ctxRatio = contextRatio(pressure);
 	return (
 		<div className="dshd-detail">
 			<div className="dshd-detail-head">
@@ -45,6 +50,37 @@ export function SessionDetail({ session, jobs, onClose, openSession }) {
 						{detailCell("Tool time", formatDuration(stats.toolMs))}
 						{detailCell("TTFT", formatDuration(stats.ttftMs))}
 						{detailCell("Decode tokens", formatTokens(stats.decodeTokens))}
+					</div>
+				</div>
+			) : null}
+			{usage ? (
+				<div className="dshd-detail-block">
+					<div className="dshd-detail-label">{"Token usage (" + formatTokensFull(usageTotal) + " total)"}</div>
+					<div className="dshd-detail-grid">
+						{detailCell("Input (uncached)", formatTokensFull(usage.uncachedInputTokens))}
+						{detailCell("Output", formatTokensFull(usage.outputTokens))}
+						{detailCell("Cache read", formatTokensFull(usage.cacheReadTokens))}
+						{detailCell("Cache write", formatTokensFull(usage.cacheWriteTokens))}
+						{detailCell("Total", formatTokensFull(usageTotal))}
+					</div>
+					<div className="dshd-stack" title="Composition of total tokens: input / output / cache read / cache write">
+						<span style={{ width: pctOf(usage.uncachedInputTokens) + "%", background: "var(--dsw-static-blue-400,#60a5fa)" }} />
+						<span style={{ width: pctOf(usage.outputTokens) + "%", background: "var(--dsw-alias-state-success-primary,#22c55e)" }} />
+						<span style={{ width: pctOf(usage.cacheReadTokens) + "%", background: "var(--dsw-static-neutral-bluish-600,#81858c)" }} />
+						<span style={{ width: pctOf(usage.cacheWriteTokens) + "%", background: "var(--dsw-alias-state-warn-secondary,#f7ad31)" }} />
+					</div>
+				</div>
+			) : null}
+			{pressure ? (
+				<div className="dshd-detail-block">
+					<div className="dshd-detail-label">Context pressure</div>
+					<div className="dshd-ctx">
+						<div className="dshd-ctx-head">
+							<span>{"pressure " + (typeof pressure.pressureTokens === "number" ? formatTokensFull(pressure.pressureTokens) : "\u2014")}</span>
+							<span>{"window " + (pressure.contextWindow ? formatTokensFull(pressure.contextWindow) : "\u2014")}</span>
+						</div>
+						{ctxRatio != null ? <div className="dshd-progress dshd-progress-ctx"><span style={{ width: Math.round(ctxRatio * 100) + "%" }} /></div> : null}
+						{typeof pressure.projectedTokens === "number" ? <div className="dshd-mono">{"projected next request: " + formatTokensFull(pressure.projectedTokens)}</div> : null}
 					</div>
 				</div>
 			) : null}
