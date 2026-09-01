@@ -1,99 +1,92 @@
 # dsh-dashboard
 
-Công cụ của bên thứ ba, KHÔNG chính thức, không liên kết/được hỗ trợ bởi DeepSeek AI.
-English summary below.
+[![CI](https://github.com/jinhun-tqtteam/dsh-dasboard/actions/workflows/ci.yml/badge.svg)](https://github.com/jinhun-tqtteam/dsh-dasboard/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/%40jinhun-tqtteam%2Fdsh-dashboard)](https://www.npmjs.com/package/@jinhun-tqtteam/dsh-dashboard)
+[![license](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
-Plugin dashboard cho **DeepSeek Harness**: tổng quan toàn bộ session, tiến độ task,
-trạng thái chờ duyệt, job nền và thông số — tất cả trên một trang ngay trong web GUI
-của harness, không cần server hay trang riêng.
+> **Unofficial third-party plugin** — not affiliated with or endorsed by DeepSeek AI.
 
-English: An unofficial third-party dashboard plugin for the DeepSeek Harness web GUI.
-It renders a full-screen overview of every session — status, progress, background jobs
-and KPIs — injected straight into the harness shell. No separate server or page.
+**Session Dashboard for [DeepSeek Harness](https://deepseek.ai)** — every session, task progress, waiting-for-approval states, background jobs and token/KPI metrics on one page, injected straight into the harness web GUI. No separate server or page.
 
-## Tính năng
+> Tiếng Việt: plugin dashboard **không chính thức** cho DeepSeek Harness — tổng quan toàn bộ session, tiến độ task, trạng thái chờ duyệt, job nền và thông số token/KPI ngay trong web GUI của harness.
 
-- **Trigger ở sidebar footer**: nút Dashboard + nút ghim (sticky) bật/tắt
-- **Panel toàn màn hình** phủ khu vực làm việc (không che sidebar):
-  - 12 thẻ KPI: tổng session, running, waiting-for-approval, jobs, turns, steps, tokens, LLM/tool/TTFT time
-  - Ô tìm kiếm + filter chips: All / Running / Approval / Needs input / Errors / Completed / Idle
-  - Bảng session có **pill trạng thái có nhãn**: Waiting for approval, Question, Plan review, Running, Error, Completed, Idle
-  - **Nháy cảnh báo** (ripple + tint) cho session đang chờ user duyệt/nhập
-  - Nhóm theo **workspace**, section Job activity (job live), subagent tree
-  - Session detail drawer: todo progress, jobs, stats
-- **Live summary nổi (sticky)**: popup góc phải theo dõi mọi trang
-  - Lọc session hoạt động trong hôm nay; badge NEW cho reply chưa đọc
-  - Ưu tiên hiển thị: NEW → Approval → Question/Plan → Running → Error
-  - Pill minimized có counter `waiting`; viền nháy khi có session chờ
-- **Trạng thái đa dạng**: approval / question / plan-review tách riêng từ
-  `pendingInteraction`; Error từ job producer crashed (job pwsh/bash không bao giờ failed)
-- Màu dot/pill dùng **design token của DSH** (`--dsw-*`) — tự theo theme light/dark
-- Tôn trọng `prefers-reduced-motion`
+## Features
 
-## Cài đặt
+- **Sidebar trigger** — Dashboard toggle + sticky pin; icon-only rail mode with tooltips when the sidebar is collapsed
+- **Full-screen panel** (never covers the sidebar):
+  - 18 KPI tiles, tone-coded (running blue / completed green / waiting amber / errors red) — the status tiles are clickable filters
+  - Search + status filter chips with status dots (All / Running / Approval / Needs input / Errors / Completed / Idle)
+  - Session tables with labeled status pills, keyboard support (Enter opens, D opens details), sticky column headers
+  - Attention ripple on sessions waiting for user approval/input
+  - Workspace grouping, live Job activity feed, subagent hierarchy tree
+  - **Slide-over detail drawer**: todo progress, live jobs, session stats, token-usage composition with legend, context-pressure gauge
+- **Floating live summary (sticky)** — follows you across pages, minimized pill with waiting counter
+- **Notifications**: in-page toasts + chimes + native OS banners for completed / error / waiting states — wired through a frame bridge so they fire even when the tab is unfocused
+- Status model splits approval / question / plan-review from `pendingInteraction`; errors come from crashed producer jobs
+- Colors ride DSH design tokens (`--dsw-*`) — light/dark theme for free; respects `prefers-reduced-motion`
 
-Copy (hoặc `git clone`) vào thư mục plugins của profile DSH:
+## Install
 
-```
-<profile>/node_modules/@dsh-user/dsh-dashboard
+### From npm (recommended)
+
+```bash
+npm install -g @jinhun-tqtteam/dsh-dashboard
 ```
 
-với `<profile>` thường là `~/.dsh/profiles/<tên-profile>`. Cấu trúc plugin:
+Then add the plugin to your DSH profile's `cordis.patch.yml` (see below).
 
-- `package.json` — khai báo `dsh.client` face (inject runtime + primitives, platform web)
-- `src/` — **source**: component JSX (`src/components/`), store, helper, stylesheet; đây là nơi duy nhất để sửa code
-- `lib/client.js` — bundle UI chạy trong browser (tự đăng ký qua `window.__ModuleLoader__`), **sinh ra từ `npm run build`** — đừng sửa tay
-- `lib/index.js` — host half (rỗng, chỉ để plugin xuất hiện trong loader)
+### From GitHub
 
-Khởi động lại `dsh web` rồi hard-refresh trình duyệt.
+```bash
+git clone https://github.com/jinhun-tqtteam/dsh-dasboard.git
+```
 
-## Kiến trúc & slot
+### Manual (copy into the profile, no build needed)
 
-| Slot | Component | Vai trò |
-|---|---|---|
-| `sidebar.footer.action` | DashboardTrigger | Nút mở dashboard + nút ghim sticky |
-| `shell.overlay` | DashboardPanel | Panel toàn màn hình |
-| `shell.overlay` | StickyWidget | Live summary nổi (độc lập store riêng) |
+Copy the package folder (with the prebuilt `lib/`) into the profile's plugin store:
 
-Client bundle export `apply(ctx)` đăng ký 3 slot qua `ctx.slots`, inject dịch vụ
-Cordis `["sessions", "slots"]`. Trạng thái đọc qua hook chuẩn `useSessions` /
-`useWorkspaces` (selector phải trả giá trị ổn định — xem ghi chú Object.is trong code).
+```
+<profile>/node_modules/@jinhun-tqtteam/dsh-dashboard
+```
 
-## Trạng thái session
+## Register the Loader entry
 
-| Status | Nguồn |
+Add to `<profile>/web/cordis.patch.yml`:
+
+```yaml
+- insert:
+    - id: dsh-dashboard
+      name: "@jinhun-tqtteam/dsh-dashboard"
+```
+
+Restart the harness (plugin-set changes need a restart; bundle content changes reach the graph via a browser refresh).
+
+## Usage
+
+| Action | How |
 |---|---|
-| Waiting for approval / Question / Plan review | `pendingInteraction` = `approval` / `question` / `plan-review` |
-| Running | `running` |
-| Error | có job `status === "failed"` trong `jobsBySession` (producer crash — job shell không bao giờ failed) |
-| Completed | client-derived "done while not selected" reminder |
-| Idle | còn lại |
+| Open the dashboard | **Dashboard** button in the sidebar footer (or the rail icon when collapsed) |
+| Pin the live summary | **Sticky** pin button |
+| Open a session | single-click a row |
+| Session details | double-click a row, press **D**, or single-click in the sticky |
+| Filter | click the KPI tiles or the status chips |
+| Close | **Esc** (closes the detail drawer first, then the panel) |
+| Toggle notifications | the bell in the panel header or sticky header (dot: green = banners granted, amber = blocked) |
 
-Lỗi request LLM (turn/end reason error) hiện **không** nằm trong session list state;
-cần host projection plugin riêng để hiển thị (đã research, xem lịch sử dev).
+### Notification sounds & banners
 
-## Hạn chế đã biết
+The first bell click warms the audio context, asks for window-notification permission and starts a keep-alive so background tabs never silence alerts. If the bell dot stays amber, allow notifications for the harness origin in the browser (padlock in the address bar) and check Windows Settings → System → Notifications for the browser app.
 
-- Lỗi LLM-level chưa hiển thị (cần host projection plugin riêng)
-- `completed` là "done reminder" của sidebar, không phải exit-status của task
+## Development
 
-## Phát triển
-
-```
-npm install        # cài devDependencies (esbuild)
-npm run build      # bundle src/ -> lib/client.js
-npm run smoke      # kiểm tra bundle không cần browser: syntax, đăng ký factory, 3 slot, openSession
+```bash
+npm install
+npm run build   # esbuild src/ -> lib/client.js (ModuleLoader CJS shape)
+npm run smoke   # structural checks: bundle shape, slot registration, exports
 ```
 
-`esbuild.mjs` ghép output của esbuild (format CJS, `react`/`react/jsx-runtime`/`@deepseek-ai/dsh-client-ui-primitives`
-để external — host module system cung cấp lúc materialize) vào shape `window.__ModuleLoader__.load({id, factory})`
-giống hệt các package chính thức. `lib/` vẫn được commit để cài kiểu copy-kéo-thả không cần build,
-nhưng mọi thay đổi UI phải đi qua `src/` rồi build lại.
-
-Ghi chú kiến trúc: `useSessions`/`useWorkspaces` là standard props host tự cấp cho slot scope `root`;
-`openSession` không phải standard prop — được cấp qua descriptor `inject` (map tới `ctx.sessions.open(id)`).
-`DashboardPanel`/`StickyWidget` chia 2 tầng (gate + body) để subscription nặng chỉ chạy khi đang hiển thị.
+`src/` is the source of truth; `lib/` is committed so the manual copy install works without a build step. The build fails if the bundle comes out suspiciously small.
 
 ## License
 
-MIT
+[MIT](./LICENSE) © Tran Quang Tien

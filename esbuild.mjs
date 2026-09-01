@@ -7,15 +7,16 @@
  * the documented copy-into-profile install works without a build step.
  */
 import { build } from "esbuild";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 
+const pkg = JSON.parse(await readFile(new URL("./package.json", import.meta.url), "utf8"));
 const banner = [
 	"window.__ModuleLoader__.load({",
-	'\tid: "@dsh-user/dsh-dashboard","',
+	'\tid: "' + pkg.name + '",',
 	"\tfactory: (require) => {",
 	"\t\tvar module = { exports: {} };",
 	"\t\tvar exports = module.exports;",
-	"\t\tObject.defineProperty(exports, Symbol.toStringTag, { value: \"Module\" });"
+	'\t\tObject.defineProperty(exports, Symbol.toStringTag, { value: "Module" });',
 ].join("\n");
 
 const footer = ["\t\treturn module.exports;", "\t}", "});", ""].join("\n");

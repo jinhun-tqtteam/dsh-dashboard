@@ -10,6 +10,7 @@ import path from "node:path";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const code = await readFile(path.join(root, "lib", "client.js"), "utf8");
+const pkg = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
 
 // Phase 1 — the file must parse at all.
 new Function(code);
@@ -46,7 +47,7 @@ const requireShim = (name) => {
 new Function("window", "require", code)(windowShim, requireShim);
 if (registered.length !== 1) throw new Error("expected exactly 1 __ModuleLoader__ registration, got " + registered.length);
 const def = registered[0];
-if (def.id !== "@dsh-user/dsh-dashboard") throw new Error("registered wrong id: " + def.id);
+if (def.id !== pkg.name) throw new Error("registered wrong id: " + def.id + " (expected " + pkg.name + ")");
 console.log("ok  registration: " + def.id);
 
 // Phase 3 — the factory must yield the client plugin face: apply + inject.
