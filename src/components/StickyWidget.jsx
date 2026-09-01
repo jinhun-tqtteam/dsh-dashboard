@@ -1,10 +1,12 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconCloseFill14 } from "@deepseek-ai/dsh-client-ui-primitives";
 import { EMPTY_OBJ, formatTime, liveJobs, sessionDotClass, sessionRowClass, statusOf, todoProgress, useNow } from "../helpers.js";
 import { isUnread, setSticky, useSticky } from "../stores.js";
 import { NotifyBell } from "./NotifyToasts.jsx";
 
 const STICKY_POS_KEY = "dshd-sticky-pos";
+const STICKY_WIDTH = 340;
+
 function loadStickyPos() {
 	try {
 		const raw = typeof localStorage !== "undefined" ? localStorage.getItem(STICKY_POS_KEY) : null;
@@ -15,12 +17,36 @@ function loadStickyPos() {
 	return null;
 }
 
+function findSessionLogBtn() {
+	try {
+		const buttons = document.querySelectorAll("button");
+		for (const btn of buttons) {
+			if (btn.textContent && btn.textContent.includes("Session log")) return btn;
+		}
+	} catch {}
+	return null;
+}
+
+/** Position the sticky just left of the Session log header button. */
+function defaultPosNearSessionLog() {
+	try {
+		const btn = findSessionLogBtn();
+		if (!btn) return null;
+		const rect = btn.getBoundingClientRect();
+		const x = Math.max(8, rect.left - 8 - STICKY_WIDTH);
+		const y = Math.max(8, rect.top - 12);
+		return { x, y };
+	} catch {
+		return null;
+	}
+}
+
 /**
  * shell.overlay entry: the floating live summary, independent of the panel.
  * Mounts only while sticky is enabled; the minimized pill keeps ticking.
- * Defaults to the top-left (clear of the top-right Session log button);
- * both the pill and the popup can be dragged to any spot on the page, and
- * the position persists across reloads.
+ * Defaults to just left of the Session log header button; the pill and the
+ * popup are draggable (drag the header), moving directly on the DOM node
+ * for a smooth frame-aligned feel, and the position persists across reloads.
  */
 export function StickyWidget({ useSessions, openSession }) {
 	const sticky = useSticky();
@@ -32,17 +58,38 @@ export function StickyWidget({ useSessions, openSession }) {
 	const [minimized, setMinimized] = useState(false);
 	const [pos, setPos] = useState(loadStickyPos);
 	const posRef = useRef(pos);
+	const rootRef = useRef(null);
 	const dragRef = useRef(null);
 	const movedRef = useRef(false);
+
+	// Seed the default position beside the Session log button only when the
+	// user has never dragged the widget.
+	useEffect(() => {
+		if (posRef.current) return;
+		const d = defaultPosNearSessionLog();
+		if (d) { posRef.current = d; setPos(d); }
+	}, []);
+
 	if (!sticky) return null;
-	const applyPos = (p) => { posRef.current = p; setPos(p); };
+
+	const endDrag = () => {
+		const d = dragRef.current;
+		if (!d) return;
+		dragRef.current = null;
+		const x = Math.round(parseFloat(d.el.style.left) || d.baseX);
+		const y = Math.round(parseFloat(d.el.style.top) || d.baseY);
+		const p = { x, y };
+		posRef.current = p;
+		setPos(p);
+		try { localStorage.setItem(STICKY_POS_KEY, JSON.stringify(p)); } catch {}
+	};
 	const onDragStart = (e) => {
 		if (e.button !== 0 && e.pointerType === "mouse") return;
 		if (e.target.closest && e.target.closest("button")) return;
-		const el = e.currentTarget.closest(".dshd-sticky") || e.currentTarget.closest(".dshd-sticky-pill");
+		const el = rootRef.current;
 		if (!el) return;
 		const rect = el.getBoundingClientRect();
-		dragRef.current = { startX: e.clientX, startY: e.clientY, baseX: rect.left, baseY: rect.top, el };
+		dragRef.current = { startX: e.clientX, startY: e.clientY, baseX: rect.left, baseY: rect.top, el, pointerId: e.pointerId };
 		movedRef.current = false;
 		if (el.setPointerCapture) { try { el.setPointerCapture(e.pointerId); } catch {} }
 		e.preventDefault();
@@ -50,19 +97,24 @@ export function StickyWidget({ useSessions, openSession }) {
 	const onDragMove = (e) => {
 		const d = dragRef.current;
 		if (!d) return;
+		// Only move while the primary button is actually held down.
+		if (!(e.buttons & 1)) { endDrag(); return; }
 		const dx = e.clientX - d.startX;
 		const dy = e.clientY - d.startY;
 		if (Math.abs(dx) + Math.abs(dy) > 4) movedRef.current = true;
-		const maxX = Math.max(8, window.innerWidth - (d.el.offsetWidth + 8));
-		const maxY = Math.max(8, window.innerHeight - (d.el.offsetHeight + 8));
-		applyPos({ x: Math.max(8, Math.min(maxX, d.baseX + dx)), y: Math.max(8, Math.min(maxY, d.baseY + dy)) });
+		const maxX = Math.max(8, window.innerWidth - d.el.offsetWidth - 8);
+		const maxY = Math.max(8, window.innerHeight - d.el.offsetHeight - 8);
+		const x = Math.max(8, Math.min(maxX, d.baseX + dx));
+		const y = Math.max(8, Math.min(maxY, d.baseY + dy));
+		// Direct style mutation \u2014 frame-smooth, no React re-render per move.
+		d.el.style.left = x + "px";
+		d.el.style.top = y + "px";
 	};
-	const onDragEnd = () => {
-		if (dragRef.current) {
-			try { localStorage.setItem(STICKY_POS_KEY, JSON.stringify(posRef.current)); } catch {}
-			dragRef.current = null;
-			setTimeout(() => { movedRef.current = false; }, 0);
-		}
+	const onDragEnd = (e) => {
+		const d = dragRef.current;
+		if (d && d.el.releasePointerCapture) { try { d.el.releasePointerCapture(e.pointerId); } catch {} }
+		endDrag();
+		setTimeout(() => { movedRef.current = false; }, 0);
 	};
 	const posStyle = pos ? { left: pos.x + "px", top: pos.y + "px" } : undefined;
 	const startOfToday = new Date();
@@ -84,12 +136,14 @@ export function StickyWidget({ useSessions, openSession }) {
 	};
 	const ordered = todays.slice().sort((a, b) => rankOf(a) - rankOf(b) || (b.updatedAt || 0) - (a.updatedAt || 0));
 	const attentionCount = todays.filter((s) => { const st = statusOf(s, jobsBySession[s.id]); return st === "approval" || st === "question" || st === "plan"; }).length;
+
+	const dragProps = { onPointerDown: onDragStart, onPointerMove: onDragMove, onPointerUp: onDragEnd, onPointerCancel: onDragEnd };
 	if (minimized) {
 		return (
-			<div className={"dshd-sticky-pill" + (attentionCount > 0 ? " dshd-pill-attn" : "")} style={posStyle}
+			<div ref={rootRef} className={"dshd-sticky-pill" + (attentionCount > 0 ? " dshd-pill-attn" : "")} style={posStyle}
 				title="Expand sticky dashboard (drag to move)"
 				onClick={() => { if (!movedRef.current) setMinimized(false); }}
-				onPointerDown={onDragStart} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}>
+				{...dragProps}>
 				<span className={"dshd-dot " + (attentionCount > 0 ? "dshd-dot-approval dshd-dot-attention" : runningCount > 0 ? "dshd-dot-running" : "dshd-dot-idle")} />
 				{unreadCount > 0 ? <span className="dshd-new">{unreadCount + " NEW"}</span> : null}
 				{attentionCount > 0 ? <span className="dshd-wait">{attentionCount + " waiting"}</span> : null}
@@ -99,9 +153,8 @@ export function StickyWidget({ useSessions, openSession }) {
 		);
 	}
 	return (
-		<div className="dshd-sticky" role="dialog" aria-label="Sticky dashboard" style={posStyle}>
-			<div className="dshd-sticky-head"
-				onPointerDown={onDragStart} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}>
+		<div ref={rootRef} className="dshd-sticky" role="dialog" aria-label="Sticky dashboard" style={posStyle}>
+			<div className="dshd-sticky-head" {...dragProps}>
 				<span className={"dshd-dot " + (runningCount > 0 ? "dshd-dot-running" : "dshd-dot-idle")} />
 				<span className="dshd-sticky-title">Live summary</span>
 				<span className="dshd-sticky-meta">
