@@ -144,8 +144,6 @@ export const css = [
 		".dshd-toast-complete{border-left-color:var(--dsw-alias-state-success-primary,#22c55e)}",
 		".dshd-toast-error{border-left-color:var(--dsw-alias-state-error-primary,#ef4444)}",
 		".dshd-toast-waiting{border-left-color:var(--dsw-alias-state-warn-primary,#f59e0b)}",
-		".dshd-toast-running{border-left-color:var(--dsw-static-deepseek-450,#5686fe)}",
-		".dshd-toast-running .dshd-toast-kind{color:var(--dsw-static-deepseek-450,#5686fe)}",
 		".dshd-bell-dot{position:absolute;top:2px;right:2px;width:7px;height:7px;border-radius:50%;border:1.5px solid var(--dsw-specific-menu,#1e1e1e)}",
 		".dshd-bell-dot-ok{background:var(--dsw-alias-state-success-primary,#22c55e)}",
 		".dshd-bell-dot-warn{background:var(--dsw-alias-state-warn-primary,#f59e0b);animation:dshd-dot-pulse 1.6s ease-in-out infinite}",
