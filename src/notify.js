@@ -1,7 +1,7 @@
 /**
  * Notification engine: status-transition watcher input, in-app toast store,
  * native window notifications (Web Notification API), and WebAudio chimes.
- * EVERY status transition notifies (running/idle included). The toggle
+ * EVERY status transition notifies (running included; idle is silent). The toggle
  * persists in localStorage (dshd-notify). The watcher runs inside the
  * always-mounted NotifyToasts slot entry so transitions fire while the
  * panel is closed, the sticky is hidden, and the tab is unfocused.
@@ -126,10 +126,6 @@ function scheduleChime(kind, ctx) {
 	} else if (kind === "running") {
 		// One short bright ping \u2014 a session started working.
 		tone(ctx, 987.77, 0.0, 0.14, "sine", 0.18);
-	} else if (kind === "idle") {
-		// Soft descending pair \u2014 a session wound down without finishing.
-		tone(ctx, 659.25, 0.0, 0.12, "triangle", 0.16);
-		tone(ctx, 523.25, 0.13, 0.18, "triangle", 0.16);
 	}
 }
 
@@ -193,7 +189,7 @@ export function requestNotifyPermission() {
 }
 
 function kindIcon(kind) {
-	const color = kind === "complete" ? "#22c55e" : kind === "error" ? "#ef4444" : kind === "running" ? "#5686fe" : kind === "idle" ? "#81858c" : "#f59e0b";
+	const color = kind === "complete" ? "#22c55e" : kind === "error" ? "#ef4444" : kind === "running" ? "#5686fe" : "#f59e0b";
 	const svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\"><path fill=\"" + color + "\" d=\"M8 1a1 1 0 0 1 1 1v.35A4.5 4.5 0 0 1 12.5 6.8c0 2.6.6 3.9 1.2 4.7.3.4 0 1-.5 1H2.8c-.5 0-.8-.6-.5-1 .6-.8 1.2-2.1 1.2-4.7A4.5 4.5 0 0 1 7 2.35V2a1 1 0 0 1 1-1Z\"/><path fill=\"" + color + "\" d=\"M6.5 13.5a1.5 1.5 0 0 0 3 0Z\"/></svg>";
 	return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 }
@@ -263,11 +259,10 @@ export function useToasts() {
 /**
  * Diff one sessions snapshot against the previous one (prevRef.current).
  * The first snapshot only baselines; afterwards EVERY status change emits
- * one event \u2014 completed, error, approval/question/plan, and also
- * running/idle so the user hears sessions start and wind down. Callers
- * pass prevRef = { current: null }.
+ * one event \u2014 completed, error, approval/question/plan, and running so
+ * the user hears sessions start. Callers pass prevRef = { current: null }.
  */
-const KIND_OF = { completed: "complete", error: "error", approval: "waiting", question: "waiting", plan: "waiting", running: "running", idle: "idle" };
+const KIND_OF = { completed: "complete", error: "error", approval: "waiting", question: "waiting", plan: "waiting", running: "running" };
 
 export function watchStatuses(sessions, jobsBySession, prevRef, emit) {
 	const prev = prevRef.current;
