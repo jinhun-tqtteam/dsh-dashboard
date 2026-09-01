@@ -136,7 +136,7 @@ export const css = [
 		".dshd-progress-ctx > span{background:var(--dsw-alias-accent,#5686fe)}",
 		".dshd-ctx{display:flex;flex-direction:column;gap:4px}",
 		".dshd-ctx-head{display:flex;justify-content:space-between;font-size:11px;color:var(--dsw-alias-label-tertiary,#8a8a8a)}",
-		".dshd-bell svg{opacity:.45}",
+		".dshd-bell{position:relative}.dshd-bell svg{opacity:.45}",
 		".dshd-bell-on svg{opacity:1;color:var(--dsw-alias-accent,#5686fe)}",
 		".dshd-toasts{position:fixed;bottom:16px;right:16px;z-index:1100;display:flex;flex-direction:column;gap:8px;pointer-events:none}",
 		".dshd-toast{pointer-events:auto;min-width:220px;max-width:320px;background:var(--dsw-specific-menu,#1e1e1e);color:var(--dsw-alias-label-primary,#e6e6e6);border:1px solid var(--dsw-alias-border-l2,rgba(128,128,128,.3));border-left:3px solid var(--dsw-static-neutral-bluish-600,#81858c);border-radius:8px;padding:8px 12px;box-shadow:0 8px 30px rgba(0,0,0,.4);cursor:pointer;font:12px/1.5 var(--dsw-font-sans,system-ui,sans-serif)}",
