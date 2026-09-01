@@ -1,8 +1,9 @@
 /**
  * Notification engine: status-transition watcher input, in-app toast store,
- * and WebAudio chimes. The toggle persists in localStorage (dshd-notify).
- * The watcher itself runs inside the always-mounted NotifyToasts slot entry
- * so transitions fire while the panel is closed and the sticky is hidden.
+ * native window notifications (Web Notification API), and WebAudio chimes.
+ * The toggle persists in localStorage (dshd-notify). The watcher itself runs
+ * inside the always-mounted NotifyToasts slot entry so transitions fire
+ * while the panel is closed and the sticky is hidden.
  */
 
 import { useSyncExternalStore } from "react";
@@ -35,15 +36,27 @@ export function useNotify() {
 }
 //#endregion
 
-//#region sound — lazy WebAudio chimes (created on the toggle's user gesture)
+//#region sound — loud, distinct WebAudio chimes through a compressor
 let audioCtx = null;
+let master = null;
 
 /** Create/resume the shared AudioContext; call from a user gesture. */
 export function warmAudio() {
 	try {
 		const Ctor = typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext);
 		if (!Ctor) return null;
-		if (!audioCtx) audioCtx = new Ctor();
+		if (!audioCtx) {
+			audioCtx = new Ctor();
+			// Compressor bus: the louder per-tone gains stay clean and punchy.
+			const comp = audioCtx.createDynamicsCompressor();
+			comp.threshold.value = -18;
+			comp.knee.value = 12;
+			comp.ratio.value = 6;
+			comp.attack.value = 0.003;
+			comp.release.value = 0.25;
+			comp.connect(audioCtx.destination);
+			master = comp;
+		}
 		if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
 		return audioCtx;
 	} catch {
@@ -57,28 +70,109 @@ function tone(ctx, freq, start, dur, type, gain) {
 	osc.type = type || "sine";
 	osc.frequency.value = freq;
 	g.gain.setValueAtTime(0, ctx.currentTime + start);
-	g.gain.linearRampToValueAtTime(gain || 0.07, ctx.currentTime + start + 0.02);
+	g.gain.linearRampToValueAtTime(gain || 0.22, ctx.currentTime + start + 0.015);
 	g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + dur);
 	osc.connect(g);
-	g.connect(ctx.destination);
+	g.connect(master || ctx.destination);
 	osc.start(ctx.currentTime + start);
 	osc.stop(ctx.currentTime + start + dur + 0.05);
 }
 
-/** Short chime per event kind: complete (up), waiting (double ping), error (low buzz). */
+/**
+ * Distinct chime per event kind — each is a different musical vocabulary so
+ * the user can tell them apart across the room:
+ *  - complete: ascending major "ta-da" (E5-G5-C6) with an octave shimmer;
+ *  - waiting:  doorbell ding-dong (A5-D5) twice — the "someone needs you" pattern;
+ *  - error:    harsh low sawtooth trill, the critical-stop vocabulary.
+ */
 export function playSound(kind) {
 	const ctx = warmAudio();
 	if (!ctx || ctx.state !== "running") return;
 	if (kind === "complete") {
-		tone(ctx, 880, 0, 0.16);
-		tone(ctx, 1174.7, 0.16, 0.24);
+		tone(ctx, 659.25, 0.0, 0.2, "triangle", 0.22);
+		tone(ctx, 783.99, 0.13, 0.2, "triangle", 0.22);
+		tone(ctx, 1046.5, 0.26, 0.45, "triangle", 0.24);
+		tone(ctx, 2093.0, 0.3, 0.35, "sine", 0.05);
 	} else if (kind === "waiting") {
-		tone(ctx, 659.3, 0, 0.14);
-		tone(ctx, 659.3, 0.2, 0.14);
+		for (const base of [0, 0.58]) {
+			tone(ctx, 880.0, base, 0.24, "sine", 0.24);
+			tone(ctx, 587.33, base + 0.24, 0.32, "sine", 0.24);
+		}
 	} else if (kind === "error") {
-		tone(ctx, 233, 0, 0.28, "square", 0.045);
-		tone(ctx, 185, 0.18, 0.3, "square", 0.045);
+		tone(ctx, 196, 0.0, 0.13, "sawtooth", 0.2);
+		tone(ctx, 220, 0.0, 0.13, "sawtooth", 0.2);
+		tone(ctx, 196, 0.17, 0.13, "sawtooth", 0.2);
+		tone(ctx, 220, 0.17, 0.13, "sawtooth", 0.2);
+		tone(ctx, 147, 0.34, 0.34, "sawtooth", 0.22);
 	}
+}
+//#endregion
+
+//#region native window notifications (Web Notification API)
+let opener = null;
+export function setOpener(fn) { opener = typeof fn === "function" ? fn : null; }
+
+const permListeners = new Set();
+let permSnapshot = typeof Notification !== "undefined" ? Notification.permission : "unavailable";
+function permEmit() { for (const fn of permListeners) fn(); }
+
+export function useNotifyPermission() {
+	return useSyncExternalStore(
+		(fn) => {
+			permListeners.add(fn);
+			return () => permListeners.delete(fn);
+		},
+		() => permSnapshot
+	);
+}
+
+/** Ask for window-notification permission; call from the bell's user gesture. */
+export function requestNotifyPermission() {
+	if (typeof Notification === "undefined") {
+		permSnapshot = "unavailable";
+		permEmit();
+		return;
+	}
+	let result;
+	try {
+		result = Notification.requestPermission();
+	} catch {
+		return;
+	}
+	if (result && typeof result.then === "function") {
+		result.then((value) => { permSnapshot = value; permEmit(); }).catch(() => {});
+	} else if (typeof result === "function") {
+		result((value) => { permSnapshot = value; permEmit(); });
+	}
+}
+
+function kindIcon(kind) {
+	const color = kind === "complete" ? "#22c55e" : kind === "error" ? "#ef4444" : "#f59e0b";
+	const svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\"><path fill=\"" + color + "\" d=\"M8 1a1 1 0 0 1 1 1v.35A4.5 4.5 0 0 1 12.5 6.8c0 2.6.6 3.9 1.2 4.7.3.4 0 1-.5 1H2.8c-.5 0-.8-.6-.5-1 .6-.8 1.2-2.1 1.2-4.7A4.5 4.5 0 0 1 7 2.35V2a1 1 0 0 1 1-1Z\"/><path fill=\"" + color + "\" d=\"M6.5 13.5a1.5 1.5 0 0 0 3 0Z\"/></svg>";
+	return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+
+/**
+ * Fire a native window notification — the OS banner shows even when this
+ * tab is unfocused or minimized. `silent` keeps the OS chime out (our own
+ * chime already played); the tag replaces earlier banners of the same
+ * session; clicking focuses the window and opens the session.
+ */
+export function showNativeNotification(ev) {
+	if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+	try {
+		const n = new Notification(ev.title || ev.id, {
+			body: ev.label + " \u2014 click to open session",
+			tag: ev.id,
+			icon: kindIcon(ev.kind),
+			silent: true
+		});
+		n.onclick = () => {
+			try { window.focus(); } catch {}
+			try { n.close(); } catch {}
+			if (opener) opener(ev.id);
+		};
+	} catch {}
 }
 //#endregion
 

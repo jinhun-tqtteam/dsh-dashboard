@@ -1,24 +1,34 @@
 import { useEffect, useRef } from "react";
 import { formatTime } from "../helpers.js";
-import { dismissToast, playSound, pushToast, setNotify, useNotify, useToasts, warmAudio, watchStatuses } from "../notify.js";
+import { dismissToast, playSound, pushToast, requestNotifyPermission, setNotify, setOpener, showNativeNotification, useNotify, useNotifyPermission, useToasts, warmAudio, watchStatuses } from "../notify.js";
 
 /**
  * Bell toggle shared by the sticky widget and the dashboard header. Turning
- * it on warms the AudioContext inside the click gesture (autoplay policy)
- * and plays a short confirmation ping.
+ * it on warms the AudioContext inside the click gesture (autoplay policy),
+ * plays a confirmation ping, and asks the browser for window-notification
+ * permission (the banner works even when the tab is unfocused).
  */
 export function NotifyBell({ size = 14 }) {
 	const on = useNotify();
+	const perm = useNotifyPermission();
+	const title = !on ? "Notifications off (click to enable)"
+		: perm === "granted" ? "Notifications on: window banner + toast + sound (click to disable)"
+		: perm === "denied" ? "Notifications on: toast + sound only \u2014 the browser blocks window banners for this site"
+		: "Notifications on (click to disable)";
 	return (
 		<button
 			type="button"
 			className={"dshd-icon-btn dshd-bell" + (on ? " dshd-bell-on" : "")}
-			title={on ? "Notifications on (click to disable)" : "Notifications off (click to enable)"}
+			title={title}
 			onClick={(e) => {
 				e.stopPropagation();
 				const next = !on;
 				setNotify(next);
-				if (next) playSound("waiting");
+				if (next) {
+					warmAudio();
+					playSound("waiting");
+					requestNotifyPermission();
+				}
 			}}
 		>
 			<svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -32,8 +42,10 @@ export function NotifyBell({ size = 14 }) {
 
 /**
  * shell.overlay entry (always mounted): runs the status-transition watcher
- * against every sessions snapshot while notifications are enabled, and
- * renders the bounded toast stack bottom-right. Renders nothing otherwise.
+ * against every sessions snapshot while notifications are enabled — each
+ * event fires the in-page toast, the chime, and the native window banner —
+ * and renders the bounded toast stack bottom-right. Renders nothing
+ * otherwise. The opener is registered for the native banner's click.
  */
 export function NotifyToasts({ useSessions, openSession }) {
 	const enabled = useNotify();
@@ -41,12 +53,17 @@ export function NotifyToasts({ useSessions, openSession }) {
 	const toasts = useToasts();
 	const prevRef = useRef(null);
 	useEffect(() => {
+		setOpener((id) => { try { openSession(id); } catch (e) { console.warn("dashboard: openSession failed", e); } });
+		return () => setOpener(null);
+	}, [openSession]);
+	useEffect(() => {
 		if (!enabled) { prevRef.current = null; return; }
 		const { ids, byId, jobsBySession = {} } = snap;
 		const sessions = ids.map((id) => byId[id]).filter(Boolean);
 		watchStatuses(sessions, jobsBySession, prevRef, (ev) => {
 			pushToast(ev);
 			playSound(ev.kind);
+			showNativeNotification(ev);
 		});
 	}, [snap, enabled]);
 	if (!enabled || toasts.length === 0) return null;
