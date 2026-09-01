@@ -45,8 +45,9 @@ function defaultPosNearSessionLog() {
  * shell.overlay entry: the floating live summary, independent of the panel.
  * Mounts only while sticky is enabled; the minimized pill keeps ticking.
  * Defaults to just left of the Session log header button; the pill and the
- * popup are draggable (drag the header), moving directly on the DOM node
- * for a smooth frame-aligned feel, and the position persists across reloads.
+ * popup are draggable from the header. Dragging mutates a CSS transform on
+ * the DOM node directly (composited, frame-smooth, and React can never
+ * overwrite it mid-drag); on release the offset commits to state + storage.
  */
 export function StickyWidget({ useSessions, openSession }) {
 	const sticky = useSticky();
@@ -72,22 +73,29 @@ export function StickyWidget({ useSessions, openSession }) {
 
 	if (!sticky) return null;
 
-	const endDrag = () => {
+	const endDrag = (e) => {
 		const d = dragRef.current;
 		if (!d) return;
 		dragRef.current = null;
-		const x = Math.round(parseFloat(d.el.style.left) || d.baseX);
-		const y = Math.round(parseFloat(d.el.style.top) || d.baseY);
-		const p = { x, y };
+		d.el.style.transform = ""; // commit the visual offset to state
+		let dx = 0, dy = 0;
+		if (e) { dx = e.clientX - d.startX; dy = e.clientY - d.startY; }
+		const p = {
+			x: Math.round(Math.max(8, Math.min(window.innerWidth - d.el.offsetWidth - 8, d.baseX + dx))),
+			y: Math.round(Math.max(8, Math.min(window.innerHeight - d.el.offsetHeight - 8, d.baseY + dy)))
+		};
 		posRef.current = p;
 		setPos(p);
 		try { localStorage.setItem(STICKY_POS_KEY, JSON.stringify(p)); } catch {}
+		if (d.el.releasePointerCapture) { try { d.el.releasePointerCapture(e && e.pointerId); } catch {} }
+		setTimeout(() => { movedRef.current = false; }, 0);
 	};
 	const onDragStart = (e) => {
 		if (e.button !== 0 && e.pointerType === "mouse") return;
 		if (e.target.closest && e.target.closest("button")) return;
 		const el = rootRef.current;
 		if (!el) return;
+		el.style.transform = ""; // clear any leftover translate
 		const rect = el.getBoundingClientRect();
 		dragRef.current = { startX: e.clientX, startY: e.clientY, baseX: rect.left, baseY: rect.top, el, pointerId: e.pointerId };
 		movedRef.current = false;
@@ -97,25 +105,15 @@ export function StickyWidget({ useSessions, openSession }) {
 	const onDragMove = (e) => {
 		const d = dragRef.current;
 		if (!d) return;
-		// Only move while the primary button is actually held down.
-		if (!(e.buttons & 1)) { endDrag(); return; }
+		// Move only while the primary button is actually held down.
+		if (!(e.buttons & 1)) { endDrag(e); return; }
 		const dx = e.clientX - d.startX;
 		const dy = e.clientY - d.startY;
 		if (Math.abs(dx) + Math.abs(dy) > 4) movedRef.current = true;
-		const maxX = Math.max(8, window.innerWidth - d.el.offsetWidth - 8);
-		const maxY = Math.max(8, window.innerHeight - d.el.offsetHeight - 8);
-		const x = Math.max(8, Math.min(maxX, d.baseX + dx));
-		const y = Math.max(8, Math.min(maxY, d.baseY + dy));
-		// Direct style mutation \u2014 frame-smooth, no React re-render per move.
-		d.el.style.left = x + "px";
-		d.el.style.top = y + "px";
+		// CSS transform: composited, no reflow, React never overrides it mid-drag.
+		d.el.style.transform = "translate(" + dx + "px," + dy + "px)";
 	};
-	const onDragEnd = (e) => {
-		const d = dragRef.current;
-		if (d && d.el.releasePointerCapture) { try { d.el.releasePointerCapture(e.pointerId); } catch {} }
-		endDrag();
-		setTimeout(() => { movedRef.current = false; }, 0);
-	};
+	const onDragEnd = (e) => { endDrag(e); };
 	const posStyle = pos ? { left: pos.x + "px", top: pos.y + "px" } : undefined;
 	const startOfToday = new Date();
 	startOfToday.setHours(0, 0, 0, 0);
