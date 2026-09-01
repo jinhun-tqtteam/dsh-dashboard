@@ -2,6 +2,7 @@ import { injectCss } from "./styles.js";
 import { DashboardPanel } from "./components/DashboardPanel.jsx";
 import { DashboardTrigger } from "./components/DashboardTrigger.jsx";
 import { StickyWidget } from "./components/StickyWidget.jsx";
+import { NotifyToasts } from "./components/NotifyToasts.jsx";
 
 injectCss();
 
@@ -33,4 +34,11 @@ export function apply(ctx) {
 		order: 20,
 		inject: () => ({ openSession })
 	}, StickyWidget));
+	// Always-mounted notification host: status-transition watcher + toast stack.
+	ctx.slots.inject("shell.overlay", () => ctx.slots.register({
+		name: "shell.overlay",
+		id: "dashboard-notify",
+		order: 30,
+		inject: () => ({ openSession })
+	}, NotifyToasts));
 }

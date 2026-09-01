@@ -2,6 +2,7 @@ import { useState } from "react";
 import { IconCloseFill14 } from "@deepseek-ai/dsh-client-ui-primitives";
 import { EMPTY_OBJ, formatTime, liveJobs, sessionDotClass, sessionRowClass, statusOf, todoProgress, useNow } from "../helpers.js";
 import { isUnread, setSticky, useSticky } from "../stores.js";
+import { NotifyBell } from "./NotifyToasts.jsx";
 
 /**
  * shell.overlay entry: the floating live summary, independent of the panel.
@@ -57,6 +58,7 @@ export function StickyWidget({ useSessions, openSession }) {
 					+ (activeJobs > 0 ? " \u00b7 " + activeJobs + " jobs" : "")
 					+ (failedJobs > 0 ? " \u00b7 " + failedJobs + " errored" : "")}
 				</span>
+				<NotifyBell />
 				<button type="button" className="dshd-icon-btn" title="Minimize" onClick={() => setMinimized(true)}>
 					<span style={{ fontSize: 12, lineHeight: 1 }}>{"\u2013"}</span>
 				</button>
