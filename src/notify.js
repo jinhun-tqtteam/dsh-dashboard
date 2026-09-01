@@ -1,7 +1,8 @@
 /**
  * Notification engine: status-transition watcher input, in-app toast store,
  * native window notifications (Web Notification API), and WebAudio chimes.
- * Notifies on completed/error and on approval/question/plan. The toggle
+ * Notifies on completed/error, approval/question/plan, and on the selected
+ * session finishing its turn ("finished"). The toggle
  * persists in localStorage (dshd-notify). The watcher runs inside the
  * always-mounted NotifyToasts slot entry so transitions fire while the
  * panel is closed, the sticky is hidden, and the tab is unfocused.
@@ -103,7 +104,7 @@ function tone(ctx, freq, start, dur, type, gain) {
 }
 
 function scheduleChime(kind, ctx) {
-	if (kind === "complete") {
+	if (kind === "complete" || kind === "finished") {
 		// Ascending major "ta-da" (E5-G5-C6) with an octave shimmer.
 		tone(ctx, 659.25, 0.0, 0.2, "triangle", 0.22);
 		tone(ctx, 783.99, 0.13, 0.2, "triangle", 0.22);
@@ -233,7 +234,7 @@ export function requestNotifyPermission() {
 }
 
 function kindIcon(kind) {
-	const color = kind === "complete" ? "#22c55e" : kind === "error" ? "#ef4444" : "#f59e0b";
+	const color = kind === "complete" || kind === "finished" ? "#22c55e" : kind === "error" ? "#ef4444" : "#f59e0b";
 	const svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\"><path fill=\"" + color + "\" d=\"M8 1a1 1 0 0 1 1 1v.35A4.5 4.5 0 0 1 12.5 6.8c0 2.6.6 3.9 1.2 4.7.3.4 0 1-.5 1H2.8c-.5 0-.8-.6-.5-1 .6-.8 1.2-2.1 1.2-4.7A4.5 4.5 0 0 1 7 2.35V2a1 1 0 0 1 1-1Z\"/><path fill=\"" + color + "\" d=\"M6.5 13.5a1.5 1.5 0 0 0 3 0Z\"/></svg>";
 	return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 }
@@ -303,21 +304,26 @@ export function useToasts() {
 /**
  * Diff one sessions snapshot against the previous one (prevRef.current).
  * The first snapshot only baselines; afterwards every transition into
- * completed, error, or approval/question/plan emits one event. Callers
- * pass prevRef = { current: null }.
+ * completed, error, or approval/question/plan emits one event, and the
+ * selected session finishing its turn emits "finished". Callers pass
+ * prevRef = { current: null }.
  */
 const KIND_OF = { completed: "complete", error: "error", approval: "waiting", question: "waiting", plan: "waiting" };
 
-export function watchStatuses(sessions, jobsBySession, prevRef, emit) {
+export function watchStatuses(sessions, jobsBySession, prevRef, emit, currentId) {
 	const prev = prevRef.current;
 	if (prev) {
 		for (const s of sessions) {
 			const st = statusOf(s, jobsBySession[s.id] || []);
 			const before = prev[s.id];
 			if (before === undefined || before === st) continue;
-			const kind = KIND_OF[st];
+			// A selected session finishing its turn reads running -> idle (the
+			// host completed flag only covers background sessions), so the
+			// current session gets its own "finished" event instead of silence.
+			const kind = KIND_OF[st]
+				|| (before === "running" && st === "idle" && s.id === currentId ? "finished" : null);
 			if (!kind) continue;
-			emit({ id: s.id, kind, title: s.displayTitle || s.id, label: statusLabel(st) });
+			emit({ id: s.id, kind, title: s.displayTitle || s.id, label: kind === "finished" ? "Finished" : statusLabel(st) });
 		}
 	}
 	const next = {};
