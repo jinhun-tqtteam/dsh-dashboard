@@ -69,6 +69,12 @@ export function SessionDetail({ session, jobs, onClose, openSession }) {
 						<span style={{ width: pctOf(usage.cacheReadTokens) + "%", background: "var(--dsw-static-neutral-bluish-600,#81858c)" }} />
 						<span style={{ width: pctOf(usage.cacheWriteTokens) + "%", background: "var(--dsw-alias-state-warn-secondary,#f7ad31)" }} />
 					</div>
+					<div className="dshd-legend">
+						<span><i className="dshd-lg" style={{ background: "var(--dsw-static-blue-400,#60a5fa)" }} />Input</span>
+						<span><i className="dshd-lg" style={{ background: "var(--dsw-alias-state-success-primary,#22c55e)" }} />Output</span>
+						<span><i className="dshd-lg" style={{ background: "var(--dsw-static-neutral-bluish-600,#81858c)" }} />Cache read</span>
+						<span><i className="dshd-lg" style={{ background: "var(--dsw-alias-state-warn-secondary,#f7ad31)" }} />Cache write</span>
+					</div>
 				</div>
 			) : null}
 			{pressure ? (
