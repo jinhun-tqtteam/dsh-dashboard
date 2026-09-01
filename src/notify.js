@@ -250,7 +250,7 @@ export function showNativeNotification(ev) {
 	try {
 		const n = new Notification(ev.title || ev.id, {
 			body: ev.label + " \u2014 click to open session",
-			tag: ev.id,
+			tag: ev.id + ":" + ev.kind, // kind-qualified so waiting/finished coexist (same-tag notifications replace each other)
 			icon: kindIcon(ev.kind),
 			silent: true
 		});
