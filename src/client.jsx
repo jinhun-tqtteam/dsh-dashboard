@@ -1,3 +1,4 @@
+import { installFrameBridge } from "./notify.js";
 import { injectCss } from "./styles.js";
 import { DashboardPanel } from "./components/DashboardPanel.jsx";
 import { DashboardTrigger } from "./components/DashboardTrigger.jsx";
@@ -5,6 +6,9 @@ import { StickyWidget } from "./components/StickyWidget.jsx";
 import { NotifyToasts } from "./components/NotifyToasts.jsx";
 
 injectCss();
+// Reroute rAF-batched store publishes through a worker timer while the tab is
+// hidden, so notifications fire without focusing the tab.
+installFrameBridge();
 
 /** Services this client plugin face needs from the runtime. */
 export const inject = ["sessions", "slots"];

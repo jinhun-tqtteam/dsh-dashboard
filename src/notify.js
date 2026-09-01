@@ -68,24 +68,23 @@ export function warmAudio() {
 
 /**
  * Keep the audio graph alive so background tabs do not suspend the context:
- * an inaudible looping buffer keeps the graph pulling while the tab is
- * unfocused. Called when notifications are enabled.
+ * a \u221256dB (inaudible) looping oscillator counts as "audible" for the
+ * Chromium tab-audio heuristic, which exempts the tab from timer throttling
+ * and tab freezing while unfocused. Called when notifications are enabled.
  */
 export function enableKeepAlive() {
 	const ctx = warmAudio();
 	if (!ctx || keepAliveSrc) return;
 	try {
-		const len = Math.max(1, Math.floor(ctx.sampleRate * 0.25));
-		const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-		const src = ctx.createBufferSource();
-		src.buffer = buf;
-		src.loop = true;
+		const osc = ctx.createOscillator();
+		osc.type = "sine";
+		osc.frequency.value = 60;
 		const g = ctx.createGain();
-		g.gain.value = 0.0001; // inaudible, but keeps the graph processing
-		src.connect(g);
+		g.gain.value = 0.002; // \u221254dBFS at 60Hz \u2014 inaudible on speakers, but non-silent so Chromium exempts the tab from throttling/freezing
+		osc.connect(g);
 		g.connect(ctx.destination);
-		src.start();
-		keepAliveSrc = src;
+		osc.start();
+		keepAliveSrc = osc;
 	} catch {}
 }
 
@@ -144,6 +143,54 @@ export function playSound(kind) {
 		if (p && typeof p.then === "function") p.then(go, go);
 		else go();
 	} catch {}
+}
+
+//#region frame bridge — keep the runtime rAF-batched publishes alive when hidden
+let bridgeInstalled = false;
+let frameWorker = null;
+let frameSeq = 0;
+let nativeRaf = null;
+
+/**
+ * The host runtime batches store publishes with requestAnimationFrame
+ * (markFrameDirty -> globalThis.requestAnimationFrame). rAF NEVER fires in
+ * a hidden tab, so stream updates — and therefore our watcher — stall until
+ * the user refocuses. This bridge reroutes rAF through a dedicated-worker
+ * timer while the tab is hidden (worker timers are not visibility-throttled);
+ * the visible path keeps the native frame-aligned rAF.
+ * Install once at module materialization, before any subscription matters.
+ */
+export function installFrameBridge() {
+	if (bridgeInstalled || typeof window === "undefined") return;
+	bridgeInstalled = true;
+	nativeRaf = typeof globalThis.requestAnimationFrame === "function" ? globalThis.requestAnimationFrame.bind(globalThis) : null;
+	globalThis.requestAnimationFrame = (cb) => {
+		if (typeof document === "undefined" || document.visibilityState === "visible") {
+			if (nativeRaf) return nativeRaf(cb);
+			return queueMicrotask(cb);
+		}
+		// Hidden: run the publish on a worker timer (16ms ~= frame cadence).
+		if (typeof Worker === "function") {
+			if (!frameWorker) {
+				try {
+					const code = "let t=null;onmessage=e=>{clearTimeout(t);t=setTimeout(()=>postMessage(e.data),Math.max(0,e.data));};";
+					frameWorker = new Worker(URL.createObjectURL(new Blob([code], { type: "text/javascript" })));
+				} catch { frameWorker = null; }
+			}
+			if (frameWorker) {
+				const seq = ++frameSeq;
+				const handler = (e) => {
+					if (e.data !== seq) return;
+					frameWorker.removeEventListener("message", handler);
+					cb(performance.now());
+				};
+				frameWorker.addEventListener("message", handler);
+				frameWorker.postMessage(16);
+				return seq;
+			}
+		}
+		return setTimeout(cb, 16);
+	};
 }
 //#endregion
 
