@@ -1,20 +1,22 @@
 import { useEffect, useRef } from "react";
 import { formatTime } from "../helpers.js";
-import { dismissToast, playSound, pushToast, requestNotifyPermission, setNotify, setOpener, showNativeNotification, useNotify, useNotifyPermission, useToasts, warmAudio, watchStatuses } from "../notify.js";
+import { dismissToast, enableKeepAlive, playSound, pushToast, requestNotifyPermission, setNotify, setOpener, showNativeNotification, useNotify, useNotifyPermission, useToasts, warmAudio, watchStatuses } from "../notify.js";
 
 /**
  * Bell toggle shared by the sticky widget and the dashboard header. Turning
  * it on warms the AudioContext inside the click gesture (autoplay policy),
- * plays a confirmation ping, and asks the browser for window-notification
- * permission (the banner works even when the tab is unfocused).
+ * starts the keep-alive so background tabs never suspend the context, plays
+ * a confirmation ping, and asks the browser for window-notification
+ * permission. The dot shows permission health: green = banners granted,
+ * amber = banners blocked (toast + sound still work).
  */
 export function NotifyBell({ size = 14 }) {
 	const on = useNotify();
 	const perm = useNotifyPermission();
 	const title = !on ? "Notifications off (click to enable)"
-		: perm === "granted" ? "Notifications on: window banner + toast + sound (click to disable)"
-		: perm === "denied" ? "Notifications on: toast + sound only \u2014 the browser blocks window banners for this site"
-		: "Notifications on (click to disable)";
+		: perm === "granted" ? "Notifications on: window banner + toast + sound, every status change (click to disable)"
+		: perm === "denied" ? "Notifications on: toast + sound only \u2014 banners blocked by the browser (unblock via the lock icon in the address bar; click to disable)"
+		: "Notifications on: toast + sound \u2014 toggle off/on to re-ask for banner permission (click to disable)";
 	return (
 		<button
 			type="button"
@@ -26,6 +28,7 @@ export function NotifyBell({ size = 14 }) {
 				setNotify(next);
 				if (next) {
 					warmAudio();
+					enableKeepAlive();
 					playSound("waiting");
 					requestNotifyPermission();
 				}
@@ -36,14 +39,15 @@ export function NotifyBell({ size = 14 }) {
 				<path d="M6.5 13.5a1.5 1.5 0 0 0 3 0Z" />
 				{!on ? <path d="M2.5 2.5 13.5 13.5" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" /> : null}
 			</svg>
+			{on ? <span className={"dshd-bell-dot " + (perm === "granted" ? "dshd-bell-dot-ok" : "dshd-bell-dot-warn")} /> : null}
 		</button>
 	);
 }
 
 /**
  * shell.overlay entry (always mounted): runs the status-transition watcher
- * against every sessions snapshot while notifications are enabled — each
- * event fires the in-page toast, the chime, and the native window banner —
+ * against every sessions snapshot while notifications are enabled \u2014 each
+ * event fires the in-page toast, the chime, and the native window banner \u2014
  * and renders the bounded toast stack bottom-right. Renders nothing
  * otherwise. The opener is registered for the native banner's click.
  */
