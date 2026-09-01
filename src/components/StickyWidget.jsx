@@ -1,12 +1,26 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { IconCloseFill14 } from "@deepseek-ai/dsh-client-ui-primitives";
 import { EMPTY_OBJ, formatTime, liveJobs, sessionDotClass, sessionRowClass, statusOf, todoProgress, useNow } from "../helpers.js";
 import { isUnread, setSticky, useSticky } from "../stores.js";
 import { NotifyBell } from "./NotifyToasts.jsx";
 
+const STICKY_POS_KEY = "dshd-sticky-pos";
+function loadStickyPos() {
+	try {
+		const raw = typeof localStorage !== "undefined" ? localStorage.getItem(STICKY_POS_KEY) : null;
+		if (!raw) return null;
+		const p = JSON.parse(raw);
+		if (typeof p.x === "number" && typeof p.y === "number") return p;
+	} catch {}
+	return null;
+}
+
 /**
  * shell.overlay entry: the floating live summary, independent of the panel.
  * Mounts only while sticky is enabled; the minimized pill keeps ticking.
+ * Defaults to the top-left (clear of the top-right Session log button);
+ * both the pill and the popup can be dragged to any spot on the page, and
+ * the position persists across reloads.
  */
 export function StickyWidget({ useSessions, openSession }) {
 	const sticky = useSticky();
@@ -16,7 +30,41 @@ export function StickyWidget({ useSessions, openSession }) {
 	const jobsBySession = useSessions((s) => s.jobsBySession || EMPTY_OBJ);
 	const now = useNow(5000);
 	const [minimized, setMinimized] = useState(false);
+	const [pos, setPos] = useState(loadStickyPos);
+	const posRef = useRef(pos);
+	const dragRef = useRef(null);
+	const movedRef = useRef(false);
 	if (!sticky) return null;
+	const applyPos = (p) => { posRef.current = p; setPos(p); };
+	const onDragStart = (e) => {
+		if (e.button !== 0 && e.pointerType === "mouse") return;
+		if (e.target.closest && e.target.closest("button")) return;
+		const el = e.currentTarget.closest(".dshd-sticky") || e.currentTarget.closest(".dshd-sticky-pill");
+		if (!el) return;
+		const rect = el.getBoundingClientRect();
+		dragRef.current = { startX: e.clientX, startY: e.clientY, baseX: rect.left, baseY: rect.top, el };
+		movedRef.current = false;
+		if (el.setPointerCapture) { try { el.setPointerCapture(e.pointerId); } catch {} }
+		e.preventDefault();
+	};
+	const onDragMove = (e) => {
+		const d = dragRef.current;
+		if (!d) return;
+		const dx = e.clientX - d.startX;
+		const dy = e.clientY - d.startY;
+		if (Math.abs(dx) + Math.abs(dy) > 4) movedRef.current = true;
+		const maxX = Math.max(8, window.innerWidth - (d.el.offsetWidth + 8));
+		const maxY = Math.max(8, window.innerHeight - (d.el.offsetHeight + 8));
+		applyPos({ x: Math.max(8, Math.min(maxX, d.baseX + dx)), y: Math.max(8, Math.min(maxY, d.baseY + dy)) });
+	};
+	const onDragEnd = () => {
+		if (dragRef.current) {
+			try { localStorage.setItem(STICKY_POS_KEY, JSON.stringify(posRef.current)); } catch {}
+			dragRef.current = null;
+			setTimeout(() => { movedRef.current = false; }, 0);
+		}
+	};
+	const posStyle = pos ? { left: pos.x + "px", top: pos.y + "px" } : undefined;
 	const startOfToday = new Date();
 	startOfToday.setHours(0, 0, 0, 0);
 	const sessions = ids.map((id) => byId[id]).filter(Boolean);
@@ -38,7 +86,10 @@ export function StickyWidget({ useSessions, openSession }) {
 	const attentionCount = todays.filter((s) => { const st = statusOf(s, jobsBySession[s.id]); return st === "approval" || st === "question" || st === "plan"; }).length;
 	if (minimized) {
 		return (
-			<div className={"dshd-sticky-pill" + (attentionCount > 0 ? " dshd-pill-attn" : "")} onClick={() => setMinimized(false)} title="Expand sticky dashboard">
+			<div className={"dshd-sticky-pill" + (attentionCount > 0 ? " dshd-pill-attn" : "")} style={posStyle}
+				title="Expand sticky dashboard (drag to move)"
+				onClick={() => { if (!movedRef.current) setMinimized(false); }}
+				onPointerDown={onDragStart} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}>
 				<span className={"dshd-dot " + (attentionCount > 0 ? "dshd-dot-approval dshd-dot-attention" : runningCount > 0 ? "dshd-dot-running" : "dshd-dot-idle")} />
 				{unreadCount > 0 ? <span className="dshd-new">{unreadCount + " NEW"}</span> : null}
 				{attentionCount > 0 ? <span className="dshd-wait">{attentionCount + " waiting"}</span> : null}
@@ -48,8 +99,9 @@ export function StickyWidget({ useSessions, openSession }) {
 		);
 	}
 	return (
-		<div className="dshd-sticky" role="dialog" aria-label="Sticky dashboard">
-			<div className="dshd-sticky-head">
+		<div className="dshd-sticky" role="dialog" aria-label="Sticky dashboard" style={posStyle}>
+			<div className="dshd-sticky-head"
+				onPointerDown={onDragStart} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}>
 				<span className={"dshd-dot " + (runningCount > 0 ? "dshd-dot-running" : "dshd-dot-idle")} />
 				<span className="dshd-sticky-title">Live summary</span>
 				<span className="dshd-sticky-meta">
