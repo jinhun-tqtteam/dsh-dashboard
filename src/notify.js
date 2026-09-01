@@ -1,9 +1,10 @@
 /**
  * Notification engine: status-transition watcher input, in-app toast store,
  * native window notifications (Web Notification API), and WebAudio chimes.
- * The toggle persists in localStorage (dshd-notify). The watcher itself runs
- * inside the always-mounted NotifyToasts slot entry so transitions fire
- * while the panel is closed and the sticky is hidden.
+ * EVERY status transition notifies (running/idle included). The toggle
+ * persists in localStorage (dshd-notify). The watcher runs inside the
+ * always-mounted NotifyToasts slot entry so transitions fire while the
+ * panel is closed, the sticky is hidden, and the tab is unfocused.
  */
 
 import { useSyncExternalStore } from "react";
@@ -36,9 +37,10 @@ export function useNotify() {
 }
 //#endregion
 
-//#region sound — loud, distinct WebAudio chimes through a compressor
+//#region sound — loud distinct chimes; survives background-tab suspension
 let audioCtx = null;
 let master = null;
+let keepAliveSrc = null;
 
 /** Create/resume the shared AudioContext; call from a user gesture. */
 export function warmAudio() {
@@ -64,6 +66,29 @@ export function warmAudio() {
 	}
 }
 
+/**
+ * Keep the audio graph alive so background tabs do not suspend the context:
+ * an inaudible looping buffer keeps the graph pulling while the tab is
+ * unfocused. Called when notifications are enabled.
+ */
+export function enableKeepAlive() {
+	const ctx = warmAudio();
+	if (!ctx || keepAliveSrc) return;
+	try {
+		const len = Math.max(1, Math.floor(ctx.sampleRate * 0.25));
+		const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+		const src = ctx.createBufferSource();
+		src.buffer = buf;
+		src.loop = true;
+		const g = ctx.createGain();
+		g.gain.value = 0.0001; // inaudible, but keeps the graph processing
+		src.connect(g);
+		g.connect(ctx.destination);
+		src.start();
+		keepAliveSrc = src;
+	} catch {}
+}
+
 function tone(ctx, freq, start, dur, type, gain) {
 	const osc = ctx.createOscillator();
 	const g = ctx.createGain();
@@ -78,33 +103,54 @@ function tone(ctx, freq, start, dur, type, gain) {
 	osc.stop(ctx.currentTime + start + dur + 0.05);
 }
 
-/**
- * Distinct chime per event kind — each is a different musical vocabulary so
- * the user can tell them apart across the room:
- *  - complete: ascending major "ta-da" (E5-G5-C6) with an octave shimmer;
- *  - waiting:  doorbell ding-dong (A5-D5) twice — the "someone needs you" pattern;
- *  - error:    harsh low sawtooth trill, the critical-stop vocabulary.
- */
-export function playSound(kind) {
-	const ctx = warmAudio();
-	if (!ctx || ctx.state !== "running") return;
+function scheduleChime(kind, ctx) {
 	if (kind === "complete") {
+		// Ascending major "ta-da" (E5-G5-C6) with an octave shimmer.
 		tone(ctx, 659.25, 0.0, 0.2, "triangle", 0.22);
 		tone(ctx, 783.99, 0.13, 0.2, "triangle", 0.22);
 		tone(ctx, 1046.5, 0.26, 0.45, "triangle", 0.24);
 		tone(ctx, 2093.0, 0.3, 0.35, "sine", 0.05);
 	} else if (kind === "waiting") {
+		// Doorbell ding-dong (A5-D5) twice \u2014 the "someone needs you" pattern.
 		for (const base of [0, 0.58]) {
 			tone(ctx, 880.0, base, 0.24, "sine", 0.24);
 			tone(ctx, 587.33, base + 0.24, 0.32, "sine", 0.24);
 		}
 	} else if (kind === "error") {
+		// Harsh low sawtooth trill \u2014 the critical-stop vocabulary.
 		tone(ctx, 196, 0.0, 0.13, "sawtooth", 0.2);
 		tone(ctx, 220, 0.0, 0.13, "sawtooth", 0.2);
 		tone(ctx, 196, 0.17, 0.13, "sawtooth", 0.2);
 		tone(ctx, 220, 0.17, 0.13, "sawtooth", 0.2);
 		tone(ctx, 147, 0.34, 0.34, "sawtooth", 0.22);
+	} else if (kind === "running") {
+		// One short bright ping \u2014 a session started working.
+		tone(ctx, 987.77, 0.0, 0.14, "sine", 0.18);
+	} else if (kind === "idle") {
+		// Soft descending pair \u2014 a session wound down without finishing.
+		tone(ctx, 659.25, 0.0, 0.12, "triangle", 0.16);
+		tone(ctx, 523.25, 0.13, 0.18, "triangle", 0.16);
 	}
+}
+
+/**
+ * Distinct chime per event kind, scheduled AFTER resume() resolves \u2014 the
+ * previous synchronous state check returned early while the context was
+ * still waking up, which is exactly why background tabs stayed silent.
+ */
+export function playSound(kind) {
+	const ctx = warmAudio();
+	if (!ctx) return;
+	if (ctx.state === "running") {
+		scheduleChime(kind, ctx);
+		return;
+	}
+	try {
+		const p = ctx.resume();
+		const go = () => { if (ctx.state === "running") scheduleChime(kind, ctx); };
+		if (p && typeof p.then === "function") p.then(go, go);
+		else go();
+	} catch {}
 }
 //#endregion
 
@@ -147,13 +193,13 @@ export function requestNotifyPermission() {
 }
 
 function kindIcon(kind) {
-	const color = kind === "complete" ? "#22c55e" : kind === "error" ? "#ef4444" : "#f59e0b";
+	const color = kind === "complete" ? "#22c55e" : kind === "error" ? "#ef4444" : kind === "running" ? "#5686fe" : kind === "idle" ? "#81858c" : "#f59e0b";
 	const svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\"><path fill=\"" + color + "\" d=\"M8 1a1 1 0 0 1 1 1v.35A4.5 4.5 0 0 1 12.5 6.8c0 2.6.6 3.9 1.2 4.7.3.4 0 1-.5 1H2.8c-.5 0-.8-.6-.5-1 .6-.8 1.2-2.1 1.2-4.7A4.5 4.5 0 0 1 7 2.35V2a1 1 0 0 1 1-1Z\"/><path fill=\"" + color + "\" d=\"M6.5 13.5a1.5 1.5 0 0 0 3 0Z\"/></svg>";
 	return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 }
 
 /**
- * Fire a native window notification — the OS banner shows even when this
+ * Fire a native window notification \u2014 the OS banner shows even when this
  * tab is unfocused or minimized. `silent` keeps the OS chime out (our own
  * chime already played); the tag replaces earlier banners of the same
  * session; clicking focuses the window and opens the session.
@@ -216,10 +262,13 @@ export function useToasts() {
 //#region watcher — pure status-transition diff against the previous snapshot
 /**
  * Diff one sessions snapshot against the previous one (prevRef.current).
- * The first snapshot only baselines; afterwards every session that ENTERS
- * completed / error / approval / question / plan from another status emits
- * one event. Returns silently; callers pass prevRef = { current: null }.
+ * The first snapshot only baselines; afterwards EVERY status change emits
+ * one event \u2014 completed, error, approval/question/plan, and also
+ * running/idle so the user hears sessions start and wind down. Callers
+ * pass prevRef = { current: null }.
  */
+const KIND_OF = { completed: "complete", error: "error", approval: "waiting", question: "waiting", plan: "waiting", running: "running", idle: "idle" };
+
 export function watchStatuses(sessions, jobsBySession, prevRef, emit) {
 	const prev = prevRef.current;
 	if (prev) {
@@ -227,11 +276,9 @@ export function watchStatuses(sessions, jobsBySession, prevRef, emit) {
 			const st = statusOf(s, jobsBySession[s.id] || []);
 			const before = prev[s.id];
 			if (before === undefined || before === st) continue;
-			const kind = st === "completed" ? "complete"
-				: st === "error" ? "error"
-				: st === "approval" || st === "question" || st === "plan" ? "waiting"
-				: null;
-			if (kind) emit({ id: s.id, kind, title: s.displayTitle || s.id, label: statusLabel(st) });
+			const kind = KIND_OF[st];
+			if (!kind) continue;
+			emit({ id: s.id, kind, title: s.displayTitle || s.id, label: statusLabel(st) });
 		}
 	}
 	const next = {};
