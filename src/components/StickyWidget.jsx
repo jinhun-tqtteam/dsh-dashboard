@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, useEffect } from "react";
 import { IconCloseFill14 } from "@deepseek-ai/dsh-client-ui-primitives";
 import { EMPTY_OBJ, formatTime, liveJobs, sessionDotClass, sessionRowClass, statusOf, todoProgress, useNow } from "../helpers.js";
 import { isUnread, setSticky, useSticky } from "../stores.js";
 import { NotifyBell } from "./NotifyToasts.jsx";
 
 const STICKY_POS_KEY = "dshd-sticky-pos";
-const STICKY_WIDTH = 340;
 
 function loadStickyPos() {
 	try {
@@ -27,27 +26,21 @@ function findSessionLogBtn() {
 	return null;
 }
 
-/** Position the sticky just left of the Session log header button. */
-function defaultPosNearSessionLog() {
-	try {
-		const btn = findSessionLogBtn();
-		if (!btn) return null;
-		const rect = btn.getBoundingClientRect();
-		const x = Math.max(8, rect.left - 8 - STICKY_WIDTH);
-		const y = Math.max(8, rect.top - 12);
-		return { x, y };
-	} catch {
-		return null;
-	}
-}
-
 /**
  * shell.overlay entry: the floating live summary, independent of the panel.
- * Mounts only while sticky is enabled; the minimized pill keeps ticking.
- * Defaults to just left of the Session log header button; the pill and the
- * popup are draggable from the header. Dragging mutates a CSS transform on
- * the DOM node directly (composited, frame-smooth, and React can never
- * overwrite it mid-drag); on release the offset commits to state + storage.
+ *
+ * Placement (auto mode, before any manual drag): the minimized pill sits
+ * just LEFT of the Session log header button, vertically centered on the
+ * same row; the expanded popup hangs DOWN from the top bar (below the
+ * Session log button) so it never covers it. Dragging switches to a custom
+ * position persisted in localStorage; on window resize / layout shrink the
+ * active position is re-clamped so the widget always stays inside the
+ * viewport instead of getting pushed off-screen.
+ *
+ * Drag mechanics: the pointer offset is applied as a CSS transform on the
+ * DOM node directly \u2014 composited and frame-smooth, and React state can
+ * never overwrite it mid-drag. On release the final box position commits
+ * to state + storage and the transform resets.
  */
 export function StickyWidget({ useSessions, openSession }) {
 	const sticky = useSticky();
@@ -57,19 +50,60 @@ export function StickyWidget({ useSessions, openSession }) {
 	const jobsBySession = useSessions((s) => s.jobsBySession || EMPTY_OBJ);
 	const now = useNow(5000);
 	const [minimized, setMinimized] = useState(false);
-	const [pos, setPos] = useState(loadStickyPos);
-	const posRef = useRef(pos);
+	const [custom, setCustom] = useState(loadStickyPos); // null = auto anchor mode
+	const customRef = useRef(custom);
+	const [style, setStyle] = useState(null);
 	const rootRef = useRef(null);
 	const dragRef = useRef(null);
 	const movedRef = useRef(false);
+	const [, forceTick] = useState(0);
 
-	// Seed the default position beside the Session log button only when the
-	// user has never dragged the widget.
+	// Window resizes (and any layout change we can observe) re-run placement.
 	useEffect(() => {
-		if (posRef.current) return;
-		const d = defaultPosNearSessionLog();
-		if (d) { posRef.current = d; setPos(d); }
+		const onChange = () => forceTick((t) => t + 1);
+		window.addEventListener("resize", onChange);
+		return () => window.removeEventListener("resize", onChange);
 	}, []);
+
+	// Placement runs after every render but BEFORE paint: measure the real
+	// element + the Session log button, then position. Bail out of setState
+	// when nothing changed so this never loops.
+	useLayoutEffect(() => {
+		const el = rootRef.current;
+		if (custom) {
+			// Custom (dragged) mode: keep the box inside the viewport.
+			const w = el ? el.offsetWidth : 340;
+			const h = el ? el.offsetHeight : 60;
+			const maxX = Math.max(8, window.innerWidth - w - 8);
+			const maxY = Math.max(8, window.innerHeight - h - 8);
+			const x = Math.min(Math.max(8, custom.x), maxX);
+			const y = Math.min(Math.max(8, custom.y), maxY);
+			if (x !== custom.x || y !== custom.y) {
+				const p = { x, y };
+				customRef.current = p;
+				setCustom(p);
+				try { localStorage.setItem(STICKY_POS_KEY, JSON.stringify(p)); } catch {}
+			}
+			setStyle((prev) => (prev && prev.left === x + "px" && prev.top === y + "px") ? prev : { left: x + "px", top: y + "px" });
+			return;
+		}
+		// Auto mode: anchor relative to the Session log button.
+		const btn = findSessionLogBtn();
+		if (!btn || !el) { setStyle(null); return; }
+		const r = btn.getBoundingClientRect();
+		// Right edge 8px left of the button for both pill and popup.
+		const right = Math.max(8, window.innerWidth - r.left + 8);
+		const isPill = el.classList.contains("dshd-sticky-pill");
+		let top;
+		if (isPill) {
+			// Vertically centered on the Session log row.
+			top = Math.max(8, r.top + r.height / 2 - el.offsetHeight / 2);
+		} else {
+			// Popup hangs below the top bar so it never covers the button.
+			top = Math.min(Math.max(8, window.innerHeight - el.offsetHeight - 8), r.bottom + 8);
+		}
+		setStyle((prev) => (prev && prev.right === right + "px" && prev.top === top + "px") ? prev : { right: right + "px", top: top + "px", left: "auto" });
+	});
 
 	if (!sticky) return null;
 
@@ -84,8 +118,8 @@ export function StickyWidget({ useSessions, openSession }) {
 			x: Math.round(Math.max(8, Math.min(window.innerWidth - d.el.offsetWidth - 8, d.baseX + dx))),
 			y: Math.round(Math.max(8, Math.min(window.innerHeight - d.el.offsetHeight - 8, d.baseY + dy)))
 		};
-		posRef.current = p;
-		setPos(p);
+		customRef.current = p;
+		setCustom(p);
 		try { localStorage.setItem(STICKY_POS_KEY, JSON.stringify(p)); } catch {}
 		if (d.el.releasePointerCapture) { try { d.el.releasePointerCapture(e && e.pointerId); } catch {} }
 		setTimeout(() => { movedRef.current = false; }, 0);
@@ -114,7 +148,6 @@ export function StickyWidget({ useSessions, openSession }) {
 		d.el.style.transform = "translate(" + dx + "px," + dy + "px)";
 	};
 	const onDragEnd = (e) => { endDrag(e); };
-	const posStyle = pos ? { left: pos.x + "px", top: pos.y + "px" } : undefined;
 	const startOfToday = new Date();
 	startOfToday.setHours(0, 0, 0, 0);
 	const sessions = ids.map((id) => byId[id]).filter(Boolean);
@@ -138,7 +171,7 @@ export function StickyWidget({ useSessions, openSession }) {
 	const dragProps = { onPointerDown: onDragStart, onPointerMove: onDragMove, onPointerUp: onDragEnd, onPointerCancel: onDragEnd };
 	if (minimized) {
 		return (
-			<div ref={rootRef} className={"dshd-sticky-pill" + (attentionCount > 0 ? " dshd-pill-attn" : "")} style={posStyle}
+			<div ref={rootRef} className={"dshd-sticky-pill" + (attentionCount > 0 ? " dshd-pill-attn" : "")} style={style || undefined}
 				title="Expand sticky dashboard (drag to move)"
 				onClick={() => { if (!movedRef.current) setMinimized(false); }}
 				{...dragProps}>
@@ -151,7 +184,7 @@ export function StickyWidget({ useSessions, openSession }) {
 		);
 	}
 	return (
-		<div ref={rootRef} className="dshd-sticky" role="dialog" aria-label="Sticky dashboard" style={posStyle}>
+		<div ref={rootRef} className="dshd-sticky" role="dialog" aria-label="Sticky dashboard" style={style || undefined}>
 			<div className="dshd-sticky-head" {...dragProps}>
 				<span className={"dshd-dot " + (runningCount > 0 ? "dshd-dot-running" : "dshd-dot-idle")} />
 				<span className="dshd-sticky-title">Live summary</span>
