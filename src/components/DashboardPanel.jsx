@@ -5,6 +5,7 @@ import { isUnread, markRead, setOpen, useOpen } from "../stores.js";
 import { JobFeed } from "./JobFeed.jsx";
 import { SessionDetail } from "./SessionDetail.jsx";
 import { SessionTree } from "./SessionTree.jsx";
+import { NotifyBell } from "./NotifyToasts.jsx";
 
 const EMPTY_LIST = [];
 
@@ -245,6 +246,7 @@ function DashboardPanelBody({ useSessions, useWorkspaces, openSession }) {
 			<div className="dshd-header">
 				<IconDataOutline16 />
 				<span className="dshd-title">Session Dashboard</span>
+				<NotifyBell />
 				<button type="button" className="dshd-icon-btn" title="Close" onClick={() => setOpen(false)}>
 					<IconCloseFill14 />
 				</button>

@@ -57,7 +57,7 @@ if (!Array.isArray(mod.inject) || !mod.inject.includes("sessions") || !mod.injec
 }
 console.log("ok  exports: apply + inject [" + mod.inject.join(", ") + "]");
 
-// Phase 4 — apply() must wire all three slots, with openSession -> sessions.open.
+// Phase 4 — apply() must wire all four slots, with openSession -> sessions.open.
 const opened = [];
 const slotEntries = [];
 const ctx = {
@@ -72,17 +72,17 @@ const ctx = {
   effect: () => () => {},
 };
 mod.apply(ctx);
-if (slotEntries.length !== 3) throw new Error("expected 3 slot entries, got " + slotEntries.length);
+if (slotEntries.length !== 4) throw new Error("expected 4 slot entries, got " + slotEntries.length);
 const byId = Object.fromEntries(slotEntries.map((e) => [e.spec.id, e]));
-for (const id of ["dashboard-trigger", "dashboard-panel", "dashboard-sticky"]) {
+for (const id of ["dashboard-trigger", "dashboard-panel", "dashboard-sticky", "dashboard-notify"]) {
   if (!byId[id]) throw new Error("missing slot entry id: " + id + " — got: " + Object.keys(byId).join(", "));
 }
 if (byId["dashboard-trigger"].key !== "sidebar.footer.action") throw new Error("trigger registered into wrong slot: " + byId["dashboard-trigger"].key);
-for (const id of ["dashboard-panel", "dashboard-sticky"]) {
+for (const id of ["dashboard-panel", "dashboard-sticky", "dashboard-notify"]) {
   if (byId[id].key !== "shell.overlay") throw new Error(id + " registered into wrong slot: " + byId[id].key);
   byId[id].spec.inject().openSession("sess-1");
 }
-if (opened.length !== 2 || !opened.every((x) => x === "sess-1")) throw new Error("openSession did not route to ctx.sessions.open: " + JSON.stringify(opened));
-console.log("ok  slots: sidebar.footer.action(trigger) + shell.overlay(panel, sticky); openSession -> sessions.open");
+if (opened.length !== 3 || !opened.every((x) => x === "sess-1")) throw new Error("openSession did not route to ctx.sessions.open: " + JSON.stringify(opened));
+console.log("ok  slots: sidebar.footer.action(trigger) + shell.overlay(panel, sticky, notify); openSession -> sessions.open");
 
 console.log("smoke: all checks passed");
