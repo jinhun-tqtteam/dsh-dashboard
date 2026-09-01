@@ -45,6 +45,46 @@ export function formatTokens(n) {
 	return (n / 1000).toFixed(1) + "k";
 }
 
+/**
+ * Per-session token usage projection (dsh-token-meter's `tokenUsage`):
+ * provider-reported, durable, four DISJOINT buckets; reasoning tokens are
+ * already inside `outputTokens`. Null when the key has not carried a value.
+ */
+export function usageOf(s) {
+	const v = s && s.projectionValues && s.projectionValues.tokenUsage;
+	return v && typeof v === "object" ? v : null;
+}
+
+/** Disjoint-bucket totals across sessions: {input, output, cacheRead, cacheWrite}. */
+export function usageTotals(sessions) {
+	const t = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+	for (const s of sessions) {
+		const u = usageOf(s);
+		if (!u) continue;
+		t.input += u.uncachedInputTokens || 0;
+		t.output += u.outputTokens || 0;
+		t.cacheRead += u.cacheReadTokens || 0;
+		t.cacheWrite += u.cacheWriteTokens || 0;
+	}
+	return t;
+}
+
+/** Exact token count with thousands separators ("0" for absent). */
+export function formatTokensFull(n) {
+	if (!n || n <= 0) return "0";
+	return n.toLocaleString("en-US");
+}
+
+/**
+ * Context occupancy of the newest request as 0..1 from the
+ * `contextPressure` projection (pressureTokens / contextWindow),
+ * or null when either side is unknown.
+ */
+export function contextRatio(pressure) {
+	if (!pressure || typeof pressure.pressureTokens !== "number" || !pressure.contextWindow) return null;
+	return Math.min(1, pressure.pressureTokens / pressure.contextWindow);
+}
+
 /** {done, total, pct} from the todo projection, or null when there are no todos. */
 export function todoProgress(projectionValues) {
 	const todos = projectionValues && projectionValues.todos;

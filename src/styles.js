@@ -93,6 +93,7 @@ export const css = [
 			".dshd-col-preset{width:110px}",
 			".dshd-col-tasks{width:118px}",
 			".dshd-col-jobs{width:78px}",
+		".dshd-col-tokens{width:104px}",
 			".dshd-col-updated{width:92px}",
 			".dshd-section-meta{display:inline-flex;align-items:center;gap:6px}",
 			".dshd-section .dshd-empty{padding:14px}",
@@ -130,6 +131,11 @@ export const css = [
 		".dshd-todo-mark{width:16px;flex:none;text-align:center;color:var(--dsw-alias-label-tertiary,#8a8a8a)}",
 		".dshd-todo-done,.dshd-todo-done .dshd-todo-mark{color:var(--dsw-alias-state-success-primary,#22c55e)}",
 		".dshd-todo-active{color:var(--dsw-alias-accent,#5686fe)}",
+		".dshd-stack{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--dsw-alias-fill-l2,rgba(128,128,128,.15))}",
+		".dshd-stack > span{display:block;height:100%;min-width:0}",
+		".dshd-progress-ctx > span{background:var(--dsw-alias-accent,#5686fe)}",
+		".dshd-ctx{display:flex;flex-direction:column;gap:4px}",
+		".dshd-ctx-head{display:flex;justify-content:space-between;font-size:11px;color:var(--dsw-alias-label-tertiary,#8a8a8a)}",
 	].join("");
 
 	const tagId = "@dsh-user/dsh-dashboard/dashboard.css";

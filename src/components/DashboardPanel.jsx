@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { IconCloseFill14, IconDataOutline16 } from "@deepseek-ai/dsh-client-ui-primitives";
-import { EMPTY_OBJ, formatDuration, formatTime, formatTokens, liveJobs, sessionDotClass, sessionRowClass, statusClass, statusLabel, statusOf, statsOf, todoProgress, useNow } from "../helpers.js";
+import { EMPTY_OBJ, contextRatio, formatDuration, formatTime, formatTokens, formatTokensFull, liveJobs, sessionDotClass, sessionRowClass, statusClass, statusLabel, statusOf, statsOf, todoProgress, usageOf, usageTotals, useNow } from "../helpers.js";
 import { isUnread, markRead, setOpen, useOpen } from "../stores.js";
 import { JobFeed } from "./JobFeed.jsx";
 import { SessionDetail } from "./SessionDetail.jsx";
@@ -26,7 +26,7 @@ function FilterChip({ id, label, count, active, setActive }) {
 	);
 }
 
-function SessionRow({ s, jobs, current, onDetail, openSession, nowTs }) {
+function SessionRow({ s, jobs, current, onDetail, openSession, nowTs, showTokens }) {
 	const prog = todoProgress(s.projectionValues);
 	const jobsCount = jobs.length;
 	const activeJobs = liveJobs(jobs);
@@ -65,9 +65,20 @@ function SessionRow({ s, jobs, current, onDetail, openSession, nowTs }) {
 				)}
 			</td>
 			<td className="dshd-mono">{jobsCount > 0 ? (activeJobs > 0 ? activeJobs + "/" + jobsCount : String(jobsCount)) : "\u2014"}</td>
+			{showTokens ? <td className="dshd-mono">{tokenCellText(s)}</td> : null}
 			<td className="dshd-mono">{formatTime(s.updatedAt, nowTs)}</td>
 		</tr>
 	);
+}
+
+/** Compact per-row token cell: "in/out" plus context percent when known. */
+function tokenCellText(s) {
+	const u = usageOf(s);
+	if (!u) return "\u2014";
+	const p = s.projectionValues && s.projectionValues.contextPressure;
+	const ctx = contextRatio(p);
+	const base = formatTokens(u.uncachedInputTokens) + "/" + formatTokens(u.outputTokens);
+	return ctx == null ? base : base + " (" + Math.round(ctx * 100) + "%)";
 }
 
 function StatusSection({ title, sectionKey, items, dotClass, expanded, setExpanded, current, jobsBySession, onDetail, openSession, nowTs }) {
@@ -91,14 +102,15 @@ function StatusSection({ title, sectionKey, items, dotClass, expanded, setExpand
 							<th className="dshd-col-preset">Preset</th>
 							<th className="dshd-col-tasks">Tasks</th>
 							<th className="dshd-col-jobs">Jobs</th>
+							<th className="dshd-col-tokens">Tokens</th>
 							<th className="dshd-col-updated">Updated</th>
 						</tr>
 					</thead>
 					<tbody>
 						{items.length === 0 ? (
-							<tr><td colSpan={6} className="dshd-empty">None</td></tr>
+							<tr><td colSpan={7} className="dshd-empty">None</td></tr>
 						) : items.map((s) => (
-							<SessionRow key={s.id} s={s} jobs={jobsBySession[s.id] || []} current={current} onDetail={() => onDetail(s.id)} openSession={openSession} nowTs={nowTs} />
+							<SessionRow key={s.id} s={s} jobs={jobsBySession[s.id] || []} current={current} onDetail={() => onDetail(s.id)} openSession={openSession} nowTs={nowTs} showTokens />
 						))}
 					</tbody>
 				</table>
@@ -194,6 +206,7 @@ function DashboardPanelBody({ useSessions, useWorkspaces, openSession }) {
 	const failedJobs = Object.values(jobsBySession).reduce((n, jobs) => n + (Array.isArray(jobs) ? jobs.filter((j) => j.status === "failed").length : 0), 0);
 	const liveJobCount = Object.values(jobsBySession).reduce((n, jobs) => n + (Array.isArray(jobs) ? jobs.filter((j) => j && (j.status === "running" || j.status === "stopping")).length : 0), 0);
 	const agg = { turns: 0, steps: 0, llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0 };
+	const tok = usageTotals(sessions);
 	for (const s of sessions) {
 		const st = statsOf(s);
 		if (!st) continue;
@@ -250,6 +263,10 @@ function DashboardPanelBody({ useSessions, useWorkspaces, openSession }) {
 					<StatCard value={formatDuration(agg.llmMs)} label="LLM time" />
 					<StatCard value={formatDuration(agg.toolMs)} label="Tool time" />
 					<StatCard value={formatDuration(agg.ttftMs)} label="TTFT total" />
+					<StatCard value={formatTokensFull(tok.input)} label="Input tokens (uncached)" />
+					<StatCard value={formatTokensFull(tok.output)} label="Output tokens" />
+					<StatCard value={formatTokensFull(tok.cacheRead)} label="Cache read tokens" />
+					<StatCard value={formatTokensFull(tok.cacheWrite)} label="Cache write tokens" />
 				</div>
 				<div className="dshd-toolbar">
 					<input className="dshd-search" type="search" placeholder="Search title, cwd, preset..." value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -283,7 +300,7 @@ function DashboardPanelBody({ useSessions, useWorkspaces, openSession }) {
 											{expandedTree[wsKey] ? (
 												<table className="dshd-table"><tbody>
 													{wids.map((sid) => (
-														<SessionRow key={sid} s={byId[sid]} jobs={jobsBySession[sid] || []} current={current} onDetail={() => setDetailId(sid)} openSession={openSession} nowTs={now} />
+														<SessionRow key={sid} s={byId[sid]} jobs={jobsBySession[sid] || []} current={current} onDetail={() => setDetailId(sid)} openSession={openSession} nowTs={now} showTokens />
 													))}
 												</tbody></table>
 											) : null}

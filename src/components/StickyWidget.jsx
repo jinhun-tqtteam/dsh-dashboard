@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { IconCloseFill14 } from "@deepseek-ai/dsh-client-ui-primitives";
-import { EMPTY_OBJ, formatTime, liveJobs, sessionDotClass, sessionRowClass, statusOf, todoProgress, useNow } from "../helpers.js";
+import { EMPTY_OBJ, formatTime, formatTokens, liveJobs, sessionDotClass, sessionRowClass, statusOf, todoProgress, usageTotals, useNow } from "../helpers.js";
 import { isUnread, setSticky, useSticky } from "../stores.js";
 
 /**
@@ -24,6 +24,8 @@ export function StickyWidget({ useSessions, openSession }) {
 	const todays = sessions.filter((s) => (s.updatedAt || 0) >= startOfToday.getTime());
 	const unreadCount = todays.filter((s) => isUnread(s, current)).length;
 	const failedJobs = todays.filter((s) => { const jobs = jobsBySession[s.id]; return Array.isArray(jobs) && jobs.some((j) => j && j.status === "failed"); }).length;
+	const tok = usageTotals(todays);
+	const tokToday = tok.input + tok.output;
 	const rankOf = (s) => {
 		const st = statusOf(s, jobsBySession[s.id]);
 		if (isUnread(s, current)) return 0;
@@ -43,6 +45,7 @@ export function StickyWidget({ useSessions, openSession }) {
 				{attentionCount > 0 ? <span className="dshd-wait">{attentionCount + " waiting"}</span> : null}
 				<span>{runningCount + " running"}</span>
 				{activeJobs > 0 ? <span className="dshd-sticky-meta">{activeJobs + " jobs"}</span> : null}
+				{tokToday > 0 ? <span className="dshd-sticky-meta">{formatTokens(tokToday) + " tok"}</span> : null}
 			</div>
 		);
 	}
@@ -55,7 +58,8 @@ export function StickyWidget({ useSessions, openSession }) {
 					{(unreadCount > 0 ? unreadCount + " new \u00b7 " : "") + runningCount + "/" + sessions.length + " running"
 					+ (attentionCount > 0 ? " \u00b7 " + attentionCount + " waiting" : "")
 					+ (activeJobs > 0 ? " \u00b7 " + activeJobs + " jobs" : "")
-					+ (failedJobs > 0 ? " \u00b7 " + failedJobs + " errored" : "")}
+					+ (failedJobs > 0 ? " \u00b7 " + failedJobs + " errored" : "")
+					+ (tokToday > 0 ? " \u00b7 " + formatTokens(tokToday) + " tok today" : "")}
 				</span>
 				<button type="button" className="dshd-icon-btn" title="Minimize" onClick={() => setMinimized(true)}>
 					<span style={{ fontSize: 12, lineHeight: 1 }}>{"\u2013"}</span>
