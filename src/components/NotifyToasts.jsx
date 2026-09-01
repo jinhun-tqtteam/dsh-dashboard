@@ -68,7 +68,7 @@ export function NotifyToasts({ useSessions, openSession }) {
 			pushToast(ev);
 			playSound(ev.kind);
 			showNativeNotification(ev);
-		});
+		}, snap.current);
 	}, [snap, enabled]);
 	if (!enabled || toasts.length === 0) return null;
 	return (
