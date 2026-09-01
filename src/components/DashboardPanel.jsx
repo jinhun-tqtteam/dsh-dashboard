@@ -9,18 +9,36 @@ import { NotifyBell } from "./NotifyToasts.jsx";
 
 const EMPTY_LIST = [];
 
-function StatCard({ value, label }) {
+/**
+ * Summary tile. Tiles that map to a filter chip are interactive (click or
+ * Enter toggles the filter) and carry a tone so attention rows (approval,
+ * errors) read at a glance instead of disappearing into a wall of gray.
+ */
+function StatCard({ value, label, tone, filterId, filter, setActive }) {
+	const clickable = filterId != null;
+	const toggle = () => setActive(filter === filterId ? "all" : filterId);
 	return (
-		<div className="dshd-card">
+		<div
+			className={"dshd-card"
+				+ (tone ? " dshd-card-" + tone : "")
+				+ (clickable ? " dshd-card-click" : "")
+				+ (clickable && filter === filterId ? " dshd-card-on" : "")}
+			onClick={clickable ? toggle : undefined}
+			role={clickable ? "button" : undefined}
+			tabIndex={clickable ? 0 : undefined}
+			onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } } : undefined}
+		>
 			<div className="dshd-card-value">{value}</div>
 			<div className="dshd-card-label">{label}</div>
 		</div>
 	);
 }
 
-function FilterChip({ id, label, count, active, setActive }) {
+/** Filter chip with an optional status dot for at-a-glance scanning. */
+function FilterChip({ id, label, count, active, setActive, dotClass }) {
 	return (
 		<button type="button" className={"dshd-chip" + (active === id ? " dshd-chip-on" : "")} onClick={() => setActive(active === id ? "all" : id)}>
+			{dotClass ? <span className={"dshd-dot " + dotClass} /> : null}
 			{label}
 			<span className="dshd-chip-count">{String(count)}</span>
 		</button>
@@ -32,12 +50,19 @@ function SessionRow({ s, jobs, current, onDetail, openSession, nowTs, showTokens
 	const jobsCount = jobs.length;
 	const activeJobs = liveJobs(jobs);
 	const st = statusOf(s, jobs);
+	const open = () => {
+		setOpen(false);
+		try { openSession(s.id); } catch (e) { console.warn("dashboard: openSession failed", e); }
+	};
 	return (
 		<tr
 			className={"dshd-row" + (s.id === current ? " dshd-row-current" : "") + sessionRowClass(st)}
-			onClick={() => {
-				setOpen(false);
-				try { openSession(s.id); } catch (e) { console.warn("dashboard: openSession failed", e); }
+			tabIndex={0}
+			title="Click: open session \u00b7 double-click or D: details"
+			onClick={open}
+			onKeyDown={(e) => {
+				if (e.key === "Enter") open();
+				else if (e.key === "d" || e.key === "D") { e.stopPropagation(); onDetail(); }
 			}}
 			onDoubleClick={(e) => { e.stopPropagation(); onDetail(); }}
 		>
@@ -67,7 +92,7 @@ function SessionRow({ s, jobs, current, onDetail, openSession, nowTs, showTokens
 			</td>
 			<td className="dshd-mono">{jobsCount > 0 ? (activeJobs > 0 ? activeJobs + "/" + jobsCount : String(jobsCount)) : "\u2014"}</td>
 			{showTokens ? <td className="dshd-mono">{tokenCellText(s)}</td> : null}
-			<td className="dshd-mono">{formatTime(s.updatedAt, nowTs)}</td>
+			<td className="dshd-mono" title={s.updatedAt ? new Date(s.updatedAt).toLocaleString() : undefined}>{formatTime(s.updatedAt, nowTs)}</td>
 		</tr>
 	);
 }
@@ -149,9 +174,11 @@ function DashboardPanelBody({ useSessions, useWorkspaces, openSession }) {
 	const [search, setSearch] = useState("");
 	const [filter, setFilter] = useState("all");
 	const [detailId, setDetailId] = useState(null);
+	const detailRef = useRef(null);
 	const [expandedSections, setExpandedSections] = useState({ approval: true, input: true, running: true, error: true, completed: true, idle: true, ws: true, jobs: true, tree: true });
 	const [expandedTree, setExpandedTree] = useState({});
 	const lastCurrent = useRef(snap.current);
+	detailRef.current = detailId;
 
 	// Auto-close when the user switches away to another session.
 	useEffect(() => {
@@ -176,8 +203,13 @@ function DashboardPanelBody({ useSessions, useWorkspaces, openSession }) {
 		return () => { ro.disconnect(); window.removeEventListener("resize", measure); };
 	}, []);
 
+	// Escape cascades: close the detail drawer first, then the panel.
 	useEffect(() => {
-		const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+		const onKey = (e) => {
+			if (e.key !== "Escape") return;
+			if (detailRef.current) { setDetailId(null); return; }
+			setOpen(false);
+		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
 	}, []);
@@ -247,38 +279,40 @@ function DashboardPanelBody({ useSessions, useWorkspaces, openSession }) {
 				<IconDataOutline16 />
 				<span className="dshd-title">Session Dashboard</span>
 				<NotifyBell />
-				<button type="button" className="dshd-icon-btn" title="Close" onClick={() => setOpen(false)}>
+				<button type="button" className="dshd-icon-btn" title="Close (Esc)" onClick={() => setOpen(false)}>
 					<IconCloseFill14 />
 				</button>
 			</div>
 			<div className="dshd-body">
 				<div className="dshd-cards">
-					<StatCard value={String(sessions.length)} label="Total sessions" />
-					<StatCard value={String(running)} label="Running" />
-					<StatCard value={String(completed)} label="Completed" />
-					<StatCard value={String(approvalCount)} label="Waiting for approval" />
+					<StatCard value={String(sessions.length)} label="Total sessions" filterId="all" filter={filter} setActive={setFilter} />
+					<StatCard value={String(running)} label="Running" tone="run" filterId="running" filter={filter} setActive={setFilter} />
+					<StatCard value={String(completed)} label="Completed" tone="ok" filterId="completed" filter={filter} setActive={setFilter} />
+					<StatCard value={String(approvalCount)} label="Waiting for approval" tone={approvalCount > 0 ? "warn" : undefined} filterId="approval" filter={filter} setActive={setFilter} />
+					<StatCard value={String(inputCount)} label="Needs input" tone={inputCount > 0 ? "warn" : undefined} filterId="input" filter={filter} setActive={setFilter} />
+					<StatCard value={String(errorCount)} label="Errored sessions" tone={errorCount > 0 ? "err" : undefined} filterId="error" filter={filter} setActive={setFilter} />
 					<StatCard value={activeJobs + "/" + allJobs} label="Jobs active/total" />
-					<StatCard value={String(failedJobs)} label="Errored jobs (crashed)" />
+					<StatCard value={String(failedJobs)} label="Errored jobs (crashed)" tone={failedJobs > 0 ? "err" : undefined} />
 					<StatCard value={String(agg.turns)} label="Total turns" />
 					<StatCard value={String(agg.steps)} label="Total steps" />
 					<StatCard value={formatTokens(agg.decodeTokens)} label="Decode tokens" />
-					<StatCard value={formatDuration(agg.llmMs)} label="LLM time" />
+					<StatCard value={formatDuration(agg.llmMs)} label="LLM time" tone="run" />
 					<StatCard value={formatDuration(agg.toolMs)} label="Tool time" />
-					<StatCard value={formatDuration(agg.ttftMs)} label="TTFT total" />
+					<StatCard value={formatDuration(agg.ttftMs)} label="TTFT total" tone="run" />
 					<StatCard value={formatTokensFull(tok.input)} label="Input tokens (uncached)" />
-					<StatCard value={formatTokensFull(tok.output)} label="Output tokens" />
+					<StatCard value={formatTokensFull(tok.output)} label="Output tokens" tone="ok" />
 					<StatCard value={formatTokensFull(tok.cacheRead)} label="Cache read tokens" />
 					<StatCard value={formatTokensFull(tok.cacheWrite)} label="Cache write tokens" />
 				</div>
 				<div className="dshd-toolbar">
 					<input className="dshd-search" type="search" placeholder="Search title, cwd, preset..." value={search} onChange={(e) => setSearch(e.target.value)} />
 					<FilterChip id="all" label="All" count={sessions.length} active={filter} setActive={setFilter} />
-					<FilterChip id="running" label="Running" count={running} active={filter} setActive={setFilter} />
-					<FilterChip id="approval" label="Approval" count={approvalCount} active={filter} setActive={setFilter} />
-					<FilterChip id="input" label="Needs input" count={inputCount} active={filter} setActive={setFilter} />
-					<FilterChip id="error" label="Errors" count={errorCount} active={filter} setActive={setFilter} />
-					<FilterChip id="completed" label="Completed" count={completed} active={filter} setActive={setFilter} />
-					<FilterChip id="idle" label="Idle" count={stCount.idle || 0} active={filter} setActive={setFilter} />
+					<FilterChip id="running" label="Running" count={running} active={filter} setActive={setFilter} dotClass="dshd-dot-running" />
+					<FilterChip id="approval" label="Approval" count={approvalCount} active={filter} setActive={setFilter} dotClass="dshd-dot-approval" />
+					<FilterChip id="input" label="Needs input" count={inputCount} active={filter} setActive={setFilter} dotClass="dshd-dot-question" />
+					<FilterChip id="error" label="Errors" count={errorCount} active={filter} setActive={setFilter} dotClass="dshd-dot-error" />
+					<FilterChip id="completed" label="Completed" count={completed} active={filter} setActive={setFilter} dotClass="dshd-dot-completed" />
+					<FilterChip id="idle" label="Idle" count={stCount.idle || 0} active={filter} setActive={setFilter} dotClass="dshd-dot-idle" />
 				</div>
 				{wsItems.length > 0 ? (
 					<div className="dshd-section">
@@ -316,6 +350,11 @@ function DashboardPanelBody({ useSessions, useWorkspaces, openSession }) {
 				{statusSections.filter((sec) => sec.items.length > 0).map((sec) => (
 					<StatusSection key={sec.key} title={sec.title} sectionKey={sec.key} items={sec.items} dotClass={sec.dot} expanded={expandedSections} setExpanded={setExpandedSections} current={current} jobsBySession={jobsBySession} onDetail={setDetailId} openSession={openSession} nowTs={now} />
 				))}
+				{visible.length === 0 && (query || filter !== "all") ? (
+					<div className="dshd-section"><div className="dshd-nomatch">No sessions match
+						{query ? " \u201c" + search.trim() + "\u201d" : ""}{filter !== "all" ? " (filter: " + filter + ")" : ""}.</div>
+					</div>
+				) : null}
 				<div className="dshd-section">
 					<div className="dshd-section-head" onClick={() => setExpandedSections({ ...expandedSections, jobs: !expandedSections.jobs })}>
 						<span className="dshd-section-title">Job activity</span>
