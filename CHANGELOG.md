@@ -13,3 +13,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and the proje
 - Notification engine: toasts + WebAudio chimes + native OS banners for completed / error / waiting states, notification bell with permission dot, keep-alive audio for background tabs, and a requestAnimationFrame frame bridge so events still fire while the tab is unfocused
 - Keyboard support on session rows (Enter opens, D opens details) and Escape cascade (detail first, then panel)
 - CI workflow (build + smoke on Ubuntu/Windows/macOS) and a manual npm release workflow
+		- Open-source hygiene: CONTRIBUTING, Code of Conduct, Security policy, GitHub issue/PR templates, .gitattributes, English README
