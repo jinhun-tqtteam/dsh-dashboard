@@ -1,6 +1,6 @@
 # dsh-dashboard
 
-[![CI](https://github.com/jinhun-tqtteam/dsh-dasboard/actions/workflows/ci.yml/badge.svg)](https://github.com/jinhun-tqtteam/dsh-dasboard/actions/workflows/ci.yml)
+[![CI](https://github.com/jinhun-tqtteam/dsh-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/jinhun-tqtteam/dsh-dashboard/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/%40jinhun-tqtteam%2Fdsh-dashboard)](https://www.npmjs.com/package/@jinhun-tqtteam/dsh-dashboard)
 [![license](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
@@ -42,7 +42,7 @@ Pick one:
 npm install -g @jinhun-tqtteam/dsh-dashboard
 
 # or clone from GitHub
-git clone https://github.com/jinhun-tqtteam/dsh-dasboard.git
+git clone https://github.com/jinhun-tqtteam/dsh-dashboard.git
 ```
 
 Or copy the package folder (with the prebuilt `lib/`) into the profile's plugin store manually:

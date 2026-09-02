@@ -5,8 +5,8 @@ Thanks for your interest in contributing! This is a small, focused plugin — PR
 ## Getting started
 
 ```bash
-git clone https://github.com/jinhun-tqtteam/dsh-dasboard.git
-cd dsh-dasboard
+git clone https://github.com/jinhun-tqtteam/dsh-dashboard.git
+cd dsh-dashboard
 npm install --legacy-peer-deps
 npm run build
 npm run smoke
@@ -44,4 +44,4 @@ chore: bump esbuild to 0.25.10
 
 ## Reporting bugs
 
-Open a [bug report](https://github.com/jinhun-tqtteam/dsh-dasboard/issues/new?template=bug_report.yml) with your DSH version, OS + browser, and the relevant console/log output. For security issues, see [SECURITY.md](./SECURITY.md).
+Open a [bug report](https://github.com/jinhun-tqtteam/dsh-dashboard/issues/new?template=bug_report.yml) with your DSH version, OS + browser, and the relevant console/log output. For security issues, see [SECURITY.md](./SECURITY.md).

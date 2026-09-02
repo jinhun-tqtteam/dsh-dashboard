@@ -14,7 +14,7 @@ This repository ships a client-side UI plugin for DeepSeek Harness. It runs insi
 
 Please do **not** open a public issue for security problems.
 
-Use GitHub's [private vulnerability reporting](https://github.com/jinhun-tqtteam/dsh-dasboard/security/advisories/new), or contact the maintainer via [GitHub contact](https://github.com/jinhun-tqtteam). Include a description, reproduction steps, and any console output. You can expect an initial response within a few days.
+Use GitHub's [private vulnerability reporting](https://github.com/jinhun-tqtteam/dsh-dashboard/security/advisories/new), or contact the maintainer via [GitHub contact](https://github.com/jinhun-tqtteam). Include a description, reproduction steps, and any console output. You can expect an initial response within a few days.
 
 ## Notes
 

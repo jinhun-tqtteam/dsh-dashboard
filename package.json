@@ -53,11 +53,11 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/jinhun-tqtteam/dsh-dasboard.git"
+		"url": "git+https://github.com/jinhun-tqtteam/dsh-dashboard.git"
 	},
-	"homepage": "https://github.com/jinhun-tqtteam/dsh-dasboard#readme",
+	"homepage": "https://github.com/jinhun-tqtteam/dsh-dashboard#readme",
 	"bugs": {
-		"url": "https://github.com/jinhun-tqtteam/dsh-dasboard/issues"
+		"url": "https://github.com/jinhun-tqtteam/dsh-dashboard/issues"
 	},
 	"publishConfig": {
 		"access": "public"
