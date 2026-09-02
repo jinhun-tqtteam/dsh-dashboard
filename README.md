@@ -46,8 +46,10 @@ git clone https://github.com/jinhun-tqtteam/dsh-dasboard.git
 Copy the package folder (with the prebuilt `lib/`) into the profile's plugin store:
 
 ```
-<profile>/node_modules/@jinhun-tqtteam/dsh-dashboard
+<profile>/web/node_modules/@jinhun-tqtteam/dsh-dashboard
 ```
+
+(Older DSH builds used `<profile>/node_modules/...` — if `web/node_modules` does not exist, fall back to that path.)
 
 ## Register the Loader entry
 
@@ -60,6 +62,8 @@ Add to `<profile>/web/cordis.patch.yml`:
 ```
 
 Restart the harness (plugin-set changes need a restart; bundle content changes reach the graph via a browser refresh).
+
+> The loader entry `name` must exactly equal the bundle's registered id (the package name) — the client module graph rejects a bundle that registers a different id.
 
 ## Usage
 
