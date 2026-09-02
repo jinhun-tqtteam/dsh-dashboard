@@ -1,7 +1,7 @@
 {
 	"name": "@jinhun-tqtteam/dsh-dashboard",
 	"version": "0.1.0",
-	"description": "Session Dashboard plugin for DeepSeek Harness: every session, task progress, background jobs and KPIs on one page inside the harness web GUI. Unofficial third-party plugin.",
+	"description": "Session Dashboard plugin for DeepSeek Harness - every session, task progress, background jobs and KPIs on one page inside the harness web GUI. Installable with 'dsh plugin --profile web add @jinhun-tqtteam/dsh-dashboard'. Unofficial third-party plugin.",
 	"type": "module",
 	"main": "./lib/index.js",
 	"scripts": {
@@ -17,6 +17,7 @@
 	"files": [
 		"lib",
 		"src",
+		"cordis.patch.yml",
 		"README.md",
 		"LICENSE"
 	],
@@ -27,6 +28,9 @@
 				"@deepseek-ai/dsh-client-ui-primitives"
 			],
 			"platform": "web"
+		},
+		"bundle": {
+			"patch": "./cordis.patch.yml"
 		}
 	},
 	"keywords": [

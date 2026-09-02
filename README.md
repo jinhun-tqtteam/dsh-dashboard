@@ -33,27 +33,41 @@
 
 ## Install
 
-### 1. Get the package
+### One command (recommended)
 
-Pick one:
+The package is a [profile bundle](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md): it declares `dsh.bundle.patch`, so the harness CLI installs it and stacks its patch layer automatically — no manual `cordis.patch.yml` edits.
+
+From a local checkout (no npm publish needed):
 
 ```bash
-# npm (once published)
-npm install -g @jinhun-tqtteam/dsh-dashboard
+# run from this repo's directory
+dsh plugin --profile web add .
 
-# or clone from GitHub
-git clone https://github.com/jinhun-tqtteam/dsh-dashboard.git
+# or from anywhere, with an absolute path
+dsh plugin --profile web add C:/path/to/dsh-dashboard
 ```
 
-Or copy the package folder (with the prebuilt `lib/`) into the profile's plugin store manually:
+From GitHub (pnpm git install of the prebuilt `lib/`):
+
+```bash
+dsh plugin --profile web add github:jinhun-tqtteam/dsh-dashboard
+```
+
+From npm (once published):
+
+```bash
+dsh plugin --profile web add @jinhun-tqtteam/dsh-dashboard
+```
+
+The command adds the package as a profile dependency, appends it to `dsh.profile.bundles` (its `dsh.bundle.patch` declares the loader entry), and restarts pick it up.
+
+### Manual (no CLI)
+
+Copy the package folder (with the prebuilt `lib/`) into the profile's plugin store and register the loader entry by hand:
 
 ```text
 <profile>/web/node_modules/@jinhun-tqtteam/dsh-dashboard
 ```
-
-> Older DSH builds used `<profile>/node_modules/...` — if `web/node_modules` does not exist, fall back to that path.
-
-### 2. Register the loader entry
 
 Add to `<profile>/web/cordis.patch.yml`:
 
@@ -63,11 +77,11 @@ Add to `<profile>/web/cordis.patch.yml`:
       name: "@jinhun-tqtteam/dsh-dashboard"
 ```
 
-### 3. Restart the harness
+> The loader entry `name` must exactly equal the bundle's registered id (the package name). The client module graph rejects a bundle that registers a different id.
+
+### Restart
 
 Plugin-set changes need a harness restart; bundle-only changes reach the graph via a browser refresh.
-
-> The loader entry `name` must exactly equal the bundle's registered id (the package name). The client module graph rejects a bundle that registers a different id.
 
 ## Usage
 

@@ -1,0 +1,6 @@
+# Bundle patch layer for the Session Dashboard plugin.
+# Declared through dsh.bundle.patch in package.json; the dsh CLI stacks
+# this document automatically after 'dsh plugin --profile web add'.
+- insert:
+    - id: dsh-dashboard
+      name: "@jinhun-tqtteam/dsh-dashboard"
